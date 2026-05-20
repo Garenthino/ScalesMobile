@@ -1,0 +1,50 @@
+# Flutter/Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+
+# iOS
+coverage/
+ios/Flutter/.last_build_id
+ios/Flutter/ephemeral/
+ios/Pods/
+ios/Runner.xcworkspace
+ios/Build/
+ios/.generated/
+
+# Android
+android/.gradle/
+android/app/debug/
+android/app/profile/
+android/app/release/
+android/captures/
+android/gradlew
+android/gradlew.bat
+android/local.properties
+android/key.properties
+
+# Generated code
+*.g.dart
+*.freezed.dart
+*.config.dart
+*.mocks.dart
+
+# Testing
+/coverage/
+/test/.test_coverage.dart
+
+# Misc
+*.log
+*.tmp
+*.temp
+.env
+.env.local
+pubspec.lock.local
