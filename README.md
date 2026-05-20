@@ -1,60 +1,26 @@
 # ScalesMobile
 
-Flutter-based mobile applications for the Scales karaoke ecosystem.
+> **Platform**: Flutter (iOS, Android, Web)  
+> **Scope**: End-user karaoke experience — song browsing, queue management, singer profiles, social features, and white-label venue support.
 
-## Overview
+## Architecture Overview
 
-ScalesMobile provides the complete mobile experience for karaoke singers, venue staff, and platform administrators across iOS and Android platforms.
+ScalesMobile is the Flutter client for the Scales Karaoke Platform. It targets three surfaces:
 
-## Repositories in Scales Ecosystem
+- **Singer App** — patrons browse songs, check in to venues, join the queue, view stats, and share performances.
+- **KJ App** — venue staff manage the queue, approve requests, control rotation, and monitor analytics.
+- **White Label Builder** — per-venue branded apps with custom logos, colors, and App Store listings.
 
-| Repository | Purpose |
-|------------|---------|
-| **ScalesMobile** | Flutter mobile apps (singers, venue staff, admin) |
-| [ScalesInfrastructure](https://github.com/Garenthino/ScalesInfrastructure) | Backend, API, real-time services, web portal |
-| DragonHost2-Hermes | Windows-based KJ software for venue hosting |
+## Documentation
 
-## Project Structure
+| Document | Scope |
+|---|---|
+| [`docs/architecture/overview.md`](docs/architecture/overview.md) | Flutter architecture — BLoC, repository pattern, offline-first design, white-label mechanics |
 
-```
-ScalesMobile/
-├── apps/
-│   ├── singer/           # Singer-facing app (song browse, queue, favorites)
-│   ├── venue_staff/      # Venue staff app (check-in, queue management)
-│   └── admin/            # Platform admin app (analytics, user management)
-├── packages/
-│   ├── core/             # Shared business logic, API clients, models
-│   ├── ui/               # Shared UI components, themes, widgets
-│   └── sync/             # Offline-first sync engine (CRDTs)
-├── docs/                 # Architecture Decision Records, API docs
-└── tools/                # Build scripts, configuration generators
-```
+## Parent Repository
 
-## Technology Stack
-
-- **Framework**: Flutter 3.x with Dart 3
-- **State Management**: Riverpod
-- **Offline Sync**: SQLite + CRDT-based sync engine
-- **Real-time**: WebSocket client
-- **Auth**: OAuth 2.0 + custom token refresh
-
-## Quick Start
-
-```bash
-# Clone and setup
-git clone https://github.com/Garenthino/ScalesMobile.git
-cd ScalesMobile
-flutter doctor
-flutter pub get
-
-# Run specific app
-cd apps/singer && flutter run
-```
-
-## Design Documents
-
-See [ScalesInfrastructure/docs/](https://github.com/Garenthino/ScalesInfrastructure/tree/main/docs) for system architecture and cross-repository specifications.
+All backend APIs, database schemas, and infrastructure decisions live in [`Garenthino/ScalesInfrastructure`](https://github.com/Garenthino/ScalesInfrastructure).
 
 ## License
 
-MIT License - see LICENSE file
+MIT
