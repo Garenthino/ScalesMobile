@@ -1,0 +1,44 @@
+name: scales_mobile
+description: "Singer-facing mobile app for the Scales karaoke platform."
+publish_to: 'none'
+
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management & DI
+  flutter_riverpod: ^3.3.1
+  riverpod_annotation: ^4.0.2
+
+  # Navigation
+  go_router: ^17.2.3
+
+  # Networking
+  dio: ^5.9.2
+  web_socket_channel: ^3.0.3
+
+  # Local storage & utilities
+  shared_preferences: ^2.5.3
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.9.0
+
+  # UI
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.4.15
+  freezed: ^3.2.5
+  json_serializable: ^6.9.4
+  riverpod_generator: ^4.0.3
+  riverpod_lint: ^3.1.3
+
+flutter:
+  uses-material-design: true
