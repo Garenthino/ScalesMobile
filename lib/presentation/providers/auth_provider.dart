@@ -22,8 +22,6 @@ class Unauthenticated extends AuthState {
 class AuthNotifier extends Notifier<AuthState> {
   @override
   AuthState build() {
-    // NOTE: In tests, avoid uncontrolled async shifts.
-    // Sprint 1 will hydrate from secure storage here.
     return const Unauthenticated();
   }
 
@@ -37,3 +35,12 @@ class AuthNotifier extends Notifier<AuthState> {
 }
 
 final authProvider = NotifierProvider<AuthNotifier, AuthState>(AuthNotifier.new);
+
+/// Convenience provider to read the current user ID when authenticated.
+final currentUserIdProvider = Provider<String?>((ref) {
+  final authState = ref.watch(authProvider);
+  return switch (authState) {
+    Authenticated(:final userId) => userId,
+    _ => null,
+  };
+});

@@ -5,7 +5,20 @@ class RoutePaths {
   static const String home = '/home';
   static const String singerQueue = '/singer/queue';
   static const String singerProfile = '/singer/profile';
+  static const String singerProfileEdit = '/singer/profile/edit';
+  static const String checkIn = '/checkin';
+  static const String leaderboard = '/leaderboard';
   static const String venueDetail = '/venue/:id';
+}
+
+/// API endpoint constants.
+class ApiEndpoints {
+  static const baseUrl = 'https://api.scales.dev/v1';
+  static String singerProfile(String singerId) => '/singers/$singerId/profile';
+  static String checkIn(String venueId) => '/venues/$venueId/singers/checkin';
+  static String leaderboard(String venueId) => '/venues/$venueId/leaderboard';
+  static const String followSinger = '/social/follow';
+  static const String share = '/social/share';
 }
 
 /// HTTP status helpers.

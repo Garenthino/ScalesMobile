@@ -5,7 +5,10 @@ import '../presentation/screens/home/home_screen.dart';
 import '../presentation/screens/auth/auth_screen.dart';
 import '../presentation/screens/singer/singer_queue_screen.dart';
 import '../presentation/screens/singer/singer_profile_screen.dart';
+import '../presentation/screens/check_in/check_in_screen.dart';
+import '../presentation/screens/leaderboard/leaderboard_screen.dart';
 import '../presentation/screens/venue/venue_detail_screen.dart';
+import '../presentation/screens/singer/edit_profile_screen.dart';
 import '../presentation/providers/auth_provider.dart';
 import '../core/constants/app_constants.dart';
 
@@ -46,6 +49,24 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RoutePaths.singerProfile,
         builder: (context, state) => const SingerProfileScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.singerProfileEdit,
+        builder: (context, state) {
+          final singerId = state.extra as String?;
+          return EditProfileScreen(singerId: singerId ?? 'demo_user');
+        },
+      ),
+      GoRoute(
+        path: RoutePaths.checkIn,
+        builder: (context, state) => const CheckInScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.leaderboard,
+        builder: (context, state) {
+          final venueId = state.extra as String? ?? 'default_venue';
+          return LeaderboardScreen(venueId: venueId);
+        },
       ),
       GoRoute(
         path: RoutePaths.venueDetail,

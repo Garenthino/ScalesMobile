@@ -1,24 +1,33 @@
+enum UserRole { singer, host, admin, venueManager }
+
+enum SongStatus { pending, inProgress, completed, cancelled }
+
 /// Core user entity (singer, host, or admin).
-/// TODO(Garenthino): Migrate to freezed codegen when Sprint 1 data layer is wired.
 class UserEntity {
   final String id;
   final String email;
   final String? displayName;
   final String? avatarUrl;
+  final String? bio;
   final UserRole role;
   final DateTime? createdAt;
+  final int? totalPerformances;
+  final int? loyaltyPoints;
+  final String? loyaltyTier;
 
   const UserEntity({
     required this.id,
     required this.email,
     this.displayName,
     this.avatarUrl,
+    this.bio,
     required this.role,
     this.createdAt,
+    this.totalPerformances,
+    this.loyaltyPoints,
+    this.loyaltyTier,
   });
 }
-
-enum UserRole { singer, host, admin, venueManager }
 
 /// Venue entity for browsing / search.
 class VenueEntity {
@@ -61,5 +70,3 @@ class SongRequestEntity {
     this.queuePosition,
   });
 }
-
-enum SongStatus { pending, inProgress, completed, cancelled }
