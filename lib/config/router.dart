@@ -9,39 +9,65 @@ import '../presentation/screens/check_in/check_in_screen.dart';
 import '../presentation/screens/leaderboard/leaderboard_screen.dart';
 import '../presentation/screens/venue/venue_detail_screen.dart';
 import '../presentation/screens/singer/edit_profile_screen.dart';
+import '../presentation/screens/onboarding/venue_onboarding_screen.dart';
 import '../presentation/providers/auth_provider.dart';
 import '../core/constants/app_constants.dart';
+import '../services/venue_storage.dart';
+
+/// Async redirect guard that reads onboarding + auth state from local storage.
+/// Returns the route path the user should be sent to, or null to allow.
+Future<String?> _asyncRedirect(GoRouterState state, Ref ref) async {
+  final path = state.uri.path;
+  final storage = await VenueStorage.create();
+
+  final onboardingComplete = storage.isOnboardingComplete();
+  final activeVenueId = storage.getActiveVenueId();
+
+  // Allow public routes unconditionally
+  if (path == RoutePaths.splash || path == RoutePaths.onboarding) {
+    return null;
+  }
+
+  // If no venue is set, force onboarding
+  if (!onboardingComplete || activeVenueId == null) {
+    return RoutePaths.onboarding;
+  }
+
+  // Check auth state via ref (no BuildContext across async gap)
+  final authState = ref.read(authProvider);
+  final isAuth = switch (authState) {
+    Authenticated() => true,
+    _ => false,
+  };
+
+  final isAuthRoute = path == RoutePaths.auth;
+
+  if (isAuth && isAuthRoute) {
+    return RoutePaths.home;
+  }
+  if (!isAuth && !isAuthRoute) {
+    return RoutePaths.auth;
+  }
+
+  return null;
+}
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authProvider);
-
   return GoRouter(
     initialLocation: RoutePaths.splash,
-    redirect: (context, state) {
-      final isAuth = switch (authState) {
-        Authenticated() => true,
-        _ => false,
-      };
-      final isSplash = state.uri.path == RoutePaths.splash;
-      final isAuthRoute = state.uri.path == RoutePaths.auth;
-
-      // Authenticated users: boot away from splash/auth to home
-      if (isAuth && (isSplash || isAuthRoute)) {
-        return RoutePaths.home;
-      }
-
-      // Unauthenticated users: splash and anywhere else go to auth
-      if (!isAuth) {
-        if (isAuthRoute) return null;
-        return RoutePaths.auth;
-      }
-
-      return null;
+    redirect: (context, state) async {
+      // Splash is allowed; it will redirect after a brief delay
+      if (state.uri.path == RoutePaths.splash) return null;
+      return await _asyncRedirect(state, ref);
     },
     routes: [
       GoRoute(
         path: RoutePaths.splash,
         builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.onboarding,
+        builder: (context, state) => const VenueOnboardingScreen(),
       ),
       GoRoute(
         path: RoutePaths.auth,
@@ -89,7 +115,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 });
 
 // Splash screen with branded fade-in animation.
-// GoRouter redirect handles navigation — this widget is purely visual.
+// After animation completes, it navigates based on stored state.
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
@@ -109,7 +135,27 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
       duration: const Duration(milliseconds: 800),
     );
     _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _controller.forward();
+    _controller.forward().whenComplete(_onAnimationComplete);
+  }
+
+  Future<void> _onAnimationComplete() async {
+    final storage = await VenueStorage.create();
+    if (!mounted) return;
+
+    final onboardingComplete = storage.isOnboardingComplete();
+    final activeVenueId = storage.getActiveVenueId();
+
+    if (!onboardingComplete || activeVenueId == null) {
+      context.go(RoutePaths.onboarding);
+      return;
+    }
+
+    final authState = ref.read(authProvider);
+    if (authState is Authenticated) {
+      context.go(RoutePaths.home);
+    } else {
+      context.go(RoutePaths.auth);
+    }
   }
 
   @override
