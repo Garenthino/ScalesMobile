@@ -10,6 +10,8 @@ import '../presentation/screens/leaderboard/leaderboard_screen.dart';
 import '../presentation/screens/venue/venue_detail_screen.dart';
 import '../presentation/screens/singer/edit_profile_screen.dart';
 import '../presentation/screens/onboarding/venue_onboarding_screen.dart';
+import '../presentation/screens/onboarding/venue_qr_scanner_screen.dart';
+import '../presentation/screens/venue/venue_switcher_screen.dart';
 import '../presentation/providers/auth_provider.dart';
 import '../core/constants/app_constants.dart';
 import '../services/venue_storage.dart';
@@ -70,6 +72,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const VenueOnboardingScreen(),
       ),
       GoRoute(
+        path: '/scan-qr',
+        builder: (context, state) => const VenueQrScannerScreen(),
+      ),
+      GoRoute(
         path: RoutePaths.auth,
         builder: (context, state) => const AuthScreen(),
       ),
@@ -102,6 +108,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           final venueId = state.extra as String? ?? 'default_venue';
           return LeaderboardScreen(venueId: venueId);
         },
+      ),
+      GoRoute(
+        path: '/venue/switch',
+        builder: (context, state) => const VenueSwitcherScreen(),
       ),
       GoRoute(
         path: RoutePaths.venueDetail,

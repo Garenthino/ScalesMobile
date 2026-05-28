@@ -149,10 +149,7 @@ class _VenueOnboardingScreenState extends ConsumerState<VenueOnboardingScreen> {
               const SizedBox(height: 16),
               OutlinedButton.icon(
                 onPressed: () {
-                  // TODO: Implement QR scanning with mobile_scanner
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('QR scanning coming soon!')),
-                  );
+                  context.push('/scan-qr');
                 },
                 icon: const Icon(Icons.qr_code_scanner),
                 label: const Text('Scan QR Code'),
