@@ -86,15 +86,16 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-// Splash screen with branding and minimum display duration
-class SplashScreen extends StatefulWidget {
+// Splash screen with branding and minimum display duration.
+// After 2 seconds it auto-navigates based on auth state.
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _fade;
 
@@ -107,6 +108,21 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     );
     _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
     _controller.forward();
+    _navigateAfterDelay();
+  }
+
+  Future<void> _navigateAfterDelay() async {
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+
+    final isAuth = ref.read(authProvider) is Authenticated;
+
+    if (!mounted) return;
+    if (isAuth) {
+      context.go('/home');
+    } else {
+      context.go('/auth');
+    }
   }
 
   @override
