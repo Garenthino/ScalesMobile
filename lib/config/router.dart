@@ -25,14 +25,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isSplash = state.uri.path == RoutePaths.splash;
       final isAuthRoute = state.uri.path == RoutePaths.auth;
 
-      // Unauthenticated users: can stay on splash or auth; go to auth elsewhere
-      if (!isAuth) {
-        if (isSplash || isAuthRoute) return null;
-        return RoutePaths.auth;
+      // Authenticated users: boot away from splash/auth to home
+      if (isAuth && (isSplash || isAuthRoute)) {
+        return RoutePaths.home;
       }
 
-      // Authenticated users: boot away from splash/auth to home
-      if (isAuth && (isSplash || isAuthRoute)) return RoutePaths.home;
+      // Unauthenticated users: splash and anywhere else go to auth
+      if (!isAuth) {
+        if (isAuthRoute) return null;
+        return RoutePaths.auth;
+      }
 
       return null;
     },
@@ -86,8 +88,8 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-// Splash screen with branding and minimum display duration.
-// After 2 seconds it auto-navigates based on auth state.
+// Splash screen with branded fade-in animation.
+// GoRouter redirect handles navigation — this widget is purely visual.
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
@@ -108,21 +110,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     );
     _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
     _controller.forward();
-    _navigateAfterDelay();
-  }
-
-  Future<void> _navigateAfterDelay() async {
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-
-    final isAuth = ref.read(authProvider) is Authenticated;
-
-    if (!mounted) return;
-    if (isAuth) {
-      context.go('/home');
-    } else {
-      context.go('/auth');
-    }
   }
 
   @override
