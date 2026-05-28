@@ -14,7 +14,7 @@ class RoutePaths {
 
 /// API endpoint constants.
 class ApiEndpoints {
-  static const baseUrl = 'https://api.scales.dev/v1';
+  static const baseUrl = 'https://dancingdragonservices.com/api/v1';
   static String singerProfile(String singerId) => '/singers/$singerId/profile';
   static String checkIn(String venueId) => '/venues/$venueId/singers/checkin';
   static String leaderboard(String venueId) => '/venues/$venueId/leaderboard';
