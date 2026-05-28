@@ -23,8 +23,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         Authenticated() => true,
         _ => false,
       };
-      final isAuthRoute = state.uri.path == RoutePaths.splash ||
-          state.uri.path == RoutePaths.auth;
+      final isAuthRoute = state.uri.path == RoutePaths.auth;
       if (!isAuth && !isAuthRoute) return RoutePaths.auth;
       if (isAuth && isAuthRoute) return RoutePaths.home;
       return null;
@@ -79,12 +78,64 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-// Stub splash screen until router is wired into MaterialApp
-class SplashScreen extends StatelessWidget {
+// Splash screen with branding and minimum display duration
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
   @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    return Scaffold(
+      body: FadeTransition(
+        opacity: _fade,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.music_note, size: 64, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(height: 16),
+              Text(
+                'Scales',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: 160,
+                child: LinearProgressIndicator(
+                  borderRadius: BorderRadius.circular(8),
+                  minHeight: 4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
