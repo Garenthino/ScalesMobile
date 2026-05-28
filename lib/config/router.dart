@@ -18,14 +18,22 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: RoutePaths.splash,
     redirect: (context, state) {
-      // Redirect to auth if not authenticated (except splash/auth paths)
       final isAuth = switch (authState) {
         Authenticated() => true,
         _ => false,
       };
+      final isSplash = state.uri.path == RoutePaths.splash;
       final isAuthRoute = state.uri.path == RoutePaths.auth;
-      if (!isAuth && !isAuthRoute) return RoutePaths.auth;
-      if (isAuth && isAuthRoute) return RoutePaths.home;
+
+      // Unauthenticated users: can stay on splash or auth; go to auth elsewhere
+      if (!isAuth) {
+        if (isSplash || isAuthRoute) return null;
+        return RoutePaths.auth;
+      }
+
+      // Authenticated users: boot away from splash/auth to home
+      if (isAuth && (isSplash || isAuthRoute)) return RoutePaths.home;
+
       return null;
     },
     routes: [
