@@ -135,6 +135,10 @@ class _VenueCodeFormState extends ConsumerState<_VenueCodeForm> {
     final repo = ref.read(checkInRepoProvider);
     final result = await repo.checkIn(venue.id, widget.userId, code: code);
 
+    if (result.success) {
+      ref.invalidate(currentCheckInProvider(widget.userId));
+    }
+
     if (mounted) {
       setState(() {
         _isSubmitting = false;

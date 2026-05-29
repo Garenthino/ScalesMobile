@@ -19,7 +19,6 @@ class CheckInRepositoryImpl implements CheckInRepository {
   @override
   Future<CheckInResult> checkIn(String venueId, String singerId, {String? code}) async {
     try {
-      // The backend checkin endpoint is /venues/{venue_id}/singers/checkin
       final response = await _dio.post(
         '/venues/$venueId/singers/checkin',
         data: {
@@ -33,11 +32,13 @@ class CheckInRepositoryImpl implements CheckInRepository {
       );
 
       if (response.statusCode == 200) {
-        final data = response.data as Map<String, dynamic>;
+        final storage = await VenueStorage.create();
+        final venueName = _findVenueName(storage, venueId) ?? 'Venue';
+        await storage.setLastCheckIn(venueId: venueId, venueName: venueName);
         return CheckInResult(
           success: true,
           venueId: venueId,
-          venueName: data['stage_name'] as String? ?? 'Venue',
+          venueName: venueName,
           message: 'Checked in successfully!',
         );
       }
@@ -61,11 +62,77 @@ class CheckInRepositoryImpl implements CheckInRepository {
 
   @override
   Future<CheckInResult> getCurrentCheckIn(String singerId) async {
-    // No dedicated endpoint for this yet; assume not checked in
+    final storage = await VenueStorage.create();
+    final venueId = storage.getActiveVenueId();
+
+    // Query backend if we have an active venue with a token
+    if (venueId != null && (storage.getToken(venueId)?.isNotEmpty ?? false)) {
+      try {
+        final response = await _dio.get(
+          '/venues/$venueId/singers/profile',
+          options: Options(headers: await _authHeaders(venueId)),
+        );
+
+        if (response.statusCode == 200) {
+          final data = response.data as Map<String, dynamic>;
+          final lastSeen = data['last_seen'] as String?;
+          if (lastSeen != null && lastSeen.isNotEmpty) {
+            final lastSeenTime = DateTime.tryParse(lastSeen)?.toUtc();
+            final now = DateTime.now().toUtc();
+            final isRecent = lastSeenTime != null && now.difference(lastSeenTime).inHours < 24;
+
+            if (isRecent) {
+              final venueName = _findVenueName(storage, venueId) ?? 'Venue';
+              await storage.setLastCheckIn(venueId: venueId, venueName: venueName);
+              return CheckInResult(
+                success: true,
+                venueId: venueId,
+                venueName: venueName,
+                message: 'Checked in successfully!',
+              );
+            }
+          }
+        }
+      } on DioException catch (e) {
+        if (e.response?.statusCode == 401) {
+          return const CheckInResult(
+            success: false,
+            message: 'Session expired. Please sign in again.',
+          );
+        }
+        // Fall through to cache on other network errors
+      }
+    }
+
+    // Fallback to local cache
+    final cached = storage.getLastCheckIn();
+    if (cached != null) {
+      final cachedVenueId = cached['venue_id'] as String?;
+      final cachedVenueName = cached['venue_name'] as String?;
+      final checkedInAt = DateTime.tryParse(cached['checked_in_at'] as String? ?? '')?.toUtc();
+      final now = DateTime.now().toUtc();
+      if (checkedInAt != null && now.difference(checkedInAt).inHours < 24) {
+        return CheckInResult(
+          success: true,
+          venueId: cachedVenueId,
+          venueName: cachedVenueName,
+          message: 'Checked in (cached)',
+        );
+      }
+      await storage.clearLastCheckIn();
+    }
+
     return const CheckInResult(
       success: false,
       message: 'Not checked into any venue',
     );
+  }
+
+  String? _findVenueName(VenueStorage storage, String venueId) {
+    for (final v in storage.getVenues()) {
+      if (v.id == venueId) return v.name;
+    }
+    return null;
   }
 
   Future<Map<String, dynamic>> _authHeaders(String venueId) async {

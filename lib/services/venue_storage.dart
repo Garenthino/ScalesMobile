@@ -171,6 +171,34 @@ class VenueStorage {
   }
 
   // ------------------------------------------------------------------
+  // Last check-in cache
+  // ------------------------------------------------------------------
+
+  static const _lastCheckInKey = 'scales_last_checkin';
+
+  Future<void> setLastCheckIn({required String venueId, required String venueName}) async {
+    await _prefs.setString(_lastCheckInKey, jsonEncode({
+      'venue_id': venueId,
+      'venue_name': venueName,
+      'checked_in_at': DateTime.now().toIso8601String(),
+    }));
+  }
+
+  Map<String, dynamic>? getLastCheckIn() {
+    final raw = _prefs.getString(_lastCheckInKey);
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return jsonDecode(raw) as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> clearLastCheckIn() async {
+    await _prefs.remove(_lastCheckInKey);
+  }
+
+  // ------------------------------------------------------------------
   // Reset
   // ------------------------------------------------------------------
 
@@ -178,6 +206,7 @@ class VenueStorage {
     await _prefs.remove(_venuesKey);
     await _prefs.remove(_activeVenueKey);
     await _prefs.remove(_onboardingCompleteKey);
+    await _prefs.remove(_lastCheckInKey);
     // Remove all auth tokens
     for (final key in _prefs.getKeys()) {
       if (key.startsWith(_authPrefix) || key.startsWith(_refreshTokenPrefix)) {
