@@ -1,16 +1,90 @@
-import 'dart:math';
-
+import 'package:dio/dio.dart';
+import 'package:scales_mobile/core/constants/app_constants.dart';
 import 'package:scales_mobile/domain/entities/singer_profile.dart';
 import 'package:scales_mobile/domain/repositories/singer_repository.dart';
+import 'package:scales_mobile/services/venue_storage.dart';
 
-// Mock implementation of singer profile repository using local memory.
-// Switches to real API once backend endpoints are available.
-
+/// Real implementation of singer profile repository backed by the Scales API.
 class SingerProfileRepositoryImpl implements SingerProfileRepository {
+  final Dio _dio;
+
+  SingerProfileRepositoryImpl({Dio? dio}) : _dio = dio ?? Dio(BaseOptions(
+    baseUrl: ApiEndpoints.baseUrl,
+    connectTimeout: const Duration(seconds: 10),
+    receiveTimeout: const Duration(seconds: 15),
+    validateStatus: (status) => status != null && status < 500,
+  ));
+
+  Future<String?> _getActiveVenueId() async {
+    final storage = await VenueStorage.create();
+    return storage.getActiveVenueId();
+  }
+
+  Future<Map<String, dynamic>> _authHeaders() async {
+    final venueId = await _getActiveVenueId();
+    if (venueId == null) return {};
+    final storage = await VenueStorage.create();
+    final token = storage.getToken(venueId);
+    if (token != null && token.isNotEmpty) {
+      return {'Authorization': 'Bearer $token'};
+    }
+    return {};
+  }
+
   @override
   Future<SingerProfile> fetchProfile(String singerId) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    return _makeProfile(singerId);
+    final venueId = await _getActiveVenueId();
+    if (venueId == null) {
+      throw Exception('No active venue');
+    }
+    try {
+      final response = await _dio.get(
+        '/venues/$venueId/singers/$singerId',
+        options: Options(headers: await _authHeaders()),
+      );
+      if (response.statusCode == 200) {
+        final data = response.data as Map<String, dynamic>;
+        final history = await fetchSongHistory(singerId);
+        return _mapSingerProfile(data, history: history);
+      }
+      throw Exception('Failed to fetch profile: ${response.statusCode}');
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        throw Exception('Session expired. Please sign in again.');
+      }
+      rethrow;
+    }
+  }
+
+  SingerProfile _mapSingerProfile(Map<String, dynamic> data, {List<SongHistoryItem> history = const []}) {
+    final points = (data['total_points'] as num?)?.toInt() ?? 0;
+    final tierData = data['loyalty_tier'] as Map<String, dynamic>?;
+    final tier = tierData != null
+        ? LoyaltyTier(
+            name: tierData['name'] as String? ?? 'Member',
+            points: (tierData['points'] as num?)?.toInt() ?? points,
+            pointsToNextTier: (tierData['points_to_next_tier'] as num?)?.toInt() ?? 100,
+            color: tierData['color'] as String? ?? '#4CAF50',
+          )
+        : LoyaltyTier(
+            name: 'Member',
+            points: points,
+            pointsToNextTier: 100,
+            color: '#4CAF50',
+          );
+
+    return SingerProfile(
+      id: data['id'] as String? ?? '',
+      name: data['stage_name'] as String? ?? 'Unknown',
+      bio: data['bio'] as String? ?? data['pronouns'] as String?,
+      avatarUrl: data['avatar_url'] as String?,
+      performancesCount: history.length,
+      followersCount: 0,
+      followingCount: 0,
+      tier: tier,
+      songHistory: history,
+      favoriteSongs: const [],
+    );
   }
 
   @override
@@ -20,88 +94,91 @@ class SingerProfileRepositoryImpl implements SingerProfileRepository {
     String? bio,
     String? avatarUrl,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    // Return updated profile with mocked changes
-    final base = _makeProfile(singerId);
-    return SingerProfile(
-      id: base.id,
-      name: name ?? base.name,
-      bio: bio ?? base.bio,
-      avatarUrl: avatarUrl ?? base.avatarUrl,
-      performancesCount: base.performancesCount,
-      followersCount: base.followersCount,
-      followingCount: base.followingCount,
-      tier: base.tier,
-      songHistory: base.songHistory,
-      favoriteSongs: base.favoriteSongs,
-    );
+    final venueId = await _getActiveVenueId();
+    if (venueId == null) {
+      throw Exception('No active venue');
+    }
+    final body = <String, dynamic>{};
+    if (name != null) body['stage_name'] = name;
+    if (bio != null) body['bio'] = bio;
+    if (avatarUrl != null) body['avatar_url'] = avatarUrl;
+
+    try {
+      final response = await _dio.put(
+        '/venues/$venueId/singers/$singerId',
+        data: body,
+        options: Options(headers: await _authHeaders()),
+      );
+      if (response.statusCode == 200) {
+        final data = response.data as Map<String, dynamic>;
+        return _mapSingerProfile(data);
+      }
+      throw Exception('Failed to update profile: ${response.statusCode}');
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        throw Exception('Session expired. Please sign in again.');
+      }
+      rethrow;
+    }
   }
 
   @override
   Future<List<SongHistoryItem>> fetchSongHistory(String singerId) async {
-    await Future.delayed(const Duration(milliseconds: 200));
-    return _makeSongHistory();
+    final venueId = await _getActiveVenueId();
+    if (venueId == null) {
+      throw Exception('No active venue');
+    }
+    try {
+      final response = await _dio.get(
+        '/venues/$venueId/singers/$singerId/history',
+        options: Options(headers: await _authHeaders()),
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> rawList;
+        if (response.data is List) {
+          rawList = response.data as List<dynamic>;
+        } else if (response.data is Map<String, dynamic>) {
+          rawList = (response.data as Map<String, dynamic>)['data'] as List<dynamic>? ?? [];
+        } else {
+          rawList = [];
+        }
+        return rawList.map((e) => _mapHistoryItem(e as Map<String, dynamic>)).toList();
+      }
+      return [];
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        throw Exception('Session expired. Please sign in again.');
+      }
+      rethrow;
+    }
+  }
+
+  SongHistoryItem _mapHistoryItem(Map<String, dynamic> data) {
+    final playedAtRaw = data['created_at'] ?? data['played_at'];
+    return SongHistoryItem(
+      id: data['id']?.toString() ?? '',
+      songName: data['song_title'] as String? ?? data['song_name'] as String? ?? 'Unknown',
+      artistName: data['artist'] as String? ?? data['artist_name'] as String? ?? 'Unknown',
+      playedAt: playedAtRaw != null
+          ? DateTime.tryParse(playedAtRaw as String) ?? DateTime.now()
+          : DateTime.now(),
+      venueName: data['venue_name'] as String?,
+    );
   }
 
   @override
   Future<List<SongHistoryItem>> fetchFavoriteSongs(String singerId) async {
-    await Future.delayed(const Duration(milliseconds: 200));
-    return _makeSongHistory().sublist(0, min(3, _makeSongHistory().length));
+    // TODO: Favorites feature deferred to Sprint MS-02.
+    return [];
   }
 
   @override
   Future<void> addFavoriteSong(String singerId, SongHistoryItem song) async {
-    await Future.delayed(const Duration(milliseconds: 100));
+    // TODO: Favorites feature deferred to Sprint MS-02.
   }
 
   @override
   Future<void> removeFavoriteSong(String singerId, String songId) async {
-    await Future.delayed(const Duration(milliseconds: 100));
-  }
-
-  SingerProfile _makeProfile(String singerId) {
-    return SingerProfile(
-      id: singerId,
-      name: singerId == 'demo_user' ? 'Alex Singer' : 'Jane Doe',
-      bio: 'Karaoke enthusiast and shower superstar.',
-      avatarUrl: null,
-      performancesCount: 42,
-      followersCount: 15,
-      followingCount: 8,
-      tier: const LoyaltyTier(
-        name: 'Gold',
-        points: 420,
-        pointsToNextTier: 80,
-        color: '#FFD700',
-      ),
-      songHistory: _makeSongHistory(),
-      favoriteSongs: _makeSongHistory().sublist(0, 3),
-    );
-  }
-
-  List<SongHistoryItem> _makeSongHistory() {
-    return [
-      SongHistoryItem(
-        id: 'song_1',
-        songName: 'Bohemian Rhapsody',
-        artistName: 'Queen',
-        playedAt: DateTime.now().subtract(const Duration(days: 2)),
-        venueName: 'The Golden Mic',
-      ),
-      SongHistoryItem(
-        id: 'song_2',
-        songName: 'Bad Romance',
-        artistName: 'Lady Gaga',
-        playedAt: DateTime.now().subtract(const Duration(days: 5)),
-        venueName: 'Karaoke Central',
-      ),
-      SongHistoryItem(
-        id: 'song_3',
-        songName: 'Hotel California',
-        artistName: 'Eagles',
-        playedAt: DateTime.now().subtract(const Duration(days: 12)),
-        venueName: 'The Golden Mic',
-      ),
-    ];
+    // TODO: Favorites feature deferred to Sprint MS-02.
   }
 }

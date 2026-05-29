@@ -98,15 +98,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       color: Theme.of(context).colorScheme.onPrimaryContainer,
                     ),
                   ),
-                  TextButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Image picker coming soon')),
-                      );
-                    },
-                    icon: const Icon(Icons.camera_alt),
-                    label: const Text('Change Photo'),
-                  ),
+                  // TODO: Photo upload — Sprint MS-03
+                  // TextButton.icon(
+                  //   onPressed: () { ... },
+                  //   icon: const Icon(Icons.camera_alt),
+                  //   label: const Text('Change Photo'),
+                  // ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: _nameController,
