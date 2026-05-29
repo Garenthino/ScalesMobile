@@ -18,6 +18,10 @@ class ApiEndpoints {
   static String singerProfile(String singerId) => '/singers/$singerId/profile';
   static String checkIn(String venueId) => '/venues/$venueId/singers/checkin';
   static String leaderboard(String venueId) => '/venues/$venueId/leaderboard';
+  static String songs(String venueId) => '/venues/$venueId/songs';
+  static String songSearch(String venueId) => '/venues/$venueId/songs/search';
+  static String songDetail(String venueId, String songId) =>
+      '/venues/$venueId/songs/$songId';
   static const String followSinger = '/social/follow';
   static const String share = '/social/share';
 }

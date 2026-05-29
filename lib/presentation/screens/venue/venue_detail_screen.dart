@@ -7,9 +7,9 @@ import 'package:scales_mobile/services/venue_storage.dart';
 
 final venueDetailProvider = FutureProvider.autoDispose
     .family<VenueDetail?, String>((ref, id) async {
-  final repo = VenueRepository();
-  return repo.fetchVenue(id);
-});
+      final repo = VenueRepository();
+      return repo.fetchVenue(id);
+    });
 
 class VenueDetailScreen extends ConsumerWidget {
   final String venueId;
@@ -56,14 +56,11 @@ class _VenueBody extends StatelessWidget {
                 height: 160,
                 width: double.infinity,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                errorBuilder: (_, _, _) => const SizedBox.shrink(),
               ),
             ),
           const SizedBox(height: 16),
-          Text(
-            venue.name,
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
+          Text(venue.name, style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 8),
           if (venue.address != null)
             _InfoRow(icon: Icons.location_on, text: venue.address!),
@@ -116,13 +113,14 @@ class _InfoRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          Icon(
+            icon,
+            size: 20,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              text,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
+            child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
           ),
         ],
       ),
