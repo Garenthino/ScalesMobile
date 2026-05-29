@@ -60,6 +60,7 @@ class CachedVenue {
 /// Supports switching venues while preserving per-venue auth tokens,
 /// loyalty state, and settings independently.
 class VenueStorage {
+  static const _refreshTokenPrefix = 'scales_refresh_';
   static const _venuesKey = 'scales_venues';
   static const _activeVenueKey = 'scales_active_venue_id';
   static const _authPrefix = 'scales_auth_';
@@ -156,6 +157,20 @@ class VenueStorage {
   }
 
   // ------------------------------------------------------------------
+  // Per-venue refresh token
+  // ------------------------------------------------------------------
+
+  String? getRefreshToken(String venueId) => _prefs.getString('$_refreshTokenPrefix$venueId');
+
+  Future<void> setRefreshToken(String venueId, String token) async {
+    await _prefs.setString('$_refreshTokenPrefix$venueId', token);
+  }
+
+  Future<void> clearRefreshToken(String venueId) async {
+    await _prefs.remove('$_refreshTokenPrefix$venueId');
+  }
+
+  // ------------------------------------------------------------------
   // Reset
   // ------------------------------------------------------------------
 
@@ -165,7 +180,7 @@ class VenueStorage {
     await _prefs.remove(_onboardingCompleteKey);
     // Remove all auth tokens
     for (final key in _prefs.getKeys()) {
-      if (key.startsWith(_authPrefix)) {
+      if (key.startsWith(_authPrefix) || key.startsWith(_refreshTokenPrefix)) {
         await _prefs.remove(key);
       }
     }

@@ -5,7 +5,7 @@ import 'package:scales_mobile/core/constants/app_constants.dart';
 import 'package:scales_mobile/domain/entities/singer_profile.dart';
 import 'package:scales_mobile/presentation/providers/checkin_provider.dart';
 import 'package:scales_mobile/presentation/providers/auth_provider.dart';
-
+import 'package:scales_mobile/services/venue_storage.dart';
 
 class CheckInScreen extends ConsumerWidget {
   const CheckInScreen({super.key});
@@ -33,16 +33,6 @@ class CheckInScreen extends ConsumerWidget {
               error: (err, _) => Text('Error: $err'),
             ),
             const SizedBox(height: 24),
-            Text(
-              'Enter Venue Code',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Type the venue check-in code or scan a QR code to join the queue instantly.',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 16),
             _VenueCodeForm(userId: userId),
           ],
         ),
@@ -121,8 +111,29 @@ class _VenueCodeFormState extends ConsumerState<_VenueCodeForm> {
     if (code.isEmpty) return;
     setState(() => _isSubmitting = true);
 
+    // Look up venue by code to get the venue ID
+    final storage = await VenueStorage.create();
+    final venues = storage.getVenues();
+    CachedVenue? venue;
+    try {
+      venue = venues.firstWhere((v) => v.venueCode == code.toUpperCase());
+    } catch (e) {
+      // no match
+    }
+
+    if (venue == null) {
+      setState(() {
+        _isSubmitting = false;
+        _lastResult = const CheckInResult(
+          success: false,
+          message: 'Venue not found. Please enter a valid code.',
+        );
+      });
+      return;
+    }
+
     final repo = ref.read(checkInRepoProvider);
-    final result = await repo.checkIn(code, widget.userId, code: code);
+    final result = await repo.checkIn(venue.id, widget.userId, code: code);
 
     if (mounted) {
       setState(() {
@@ -137,11 +148,21 @@ class _VenueCodeFormState extends ConsumerState<_VenueCodeForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Text(
+          'Enter Venue Code',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Type the venue check-in code or scan a QR code to join the queue instantly.',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 16),
         TextField(
           controller: _controller,
           decoration: const InputDecoration(
             labelText: 'Venue Code',
-            hintText: 'e.g. GM1234',
+            hintText: 'e.g. GOLDEN',
             prefixIcon: Icon(Icons.meeting_room),
           ),
           textCapitalization: TextCapitalization.characters,
