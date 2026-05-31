@@ -5,7 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:scales_mobile/core/constants/app_constants.dart';
 import 'package:scales_mobile/domain/entities/queue_request.dart';
+import 'package:scales_mobile/domain/entities/singer_profile.dart';
 import 'package:scales_mobile/domain/entities/song.dart';
+import 'package:scales_mobile/presentation/providers/auth_provider.dart';
+import 'package:scales_mobile/presentation/providers/profile_provider.dart';
 import 'package:scales_mobile/presentation/providers/queue_provider.dart';
 import 'package:scales_mobile/presentation/providers/song_search_provider.dart';
 import 'package:scales_mobile/services/venue_storage.dart';
@@ -20,6 +23,7 @@ class SongBrowserScreen extends ConsumerStatefulWidget {
 class _SongBrowserScreenState extends ConsumerState<SongBrowserScreen> {
   final _searchController = TextEditingController();
   final Set<String> _favoriteSongIds = <String>{};
+  final Set<String> _syncingFavoriteIds = <String>{};
   final Set<String> _requestingSongIds = <String>{};
 
   String? _selectedGenre;
@@ -36,6 +40,7 @@ class _SongBrowserScreenState extends ConsumerState<SongBrowserScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(songSearchProvider.notifier).loadInitial();
     });
+    unawaited(_loadFavorites());
   }
 
   Future<void> _loadVenue() async {
@@ -45,6 +50,32 @@ class _SongBrowserScreenState extends ConsumerState<SongBrowserScreen> {
       _activeVenue = storage.getActiveVenue();
       _isLoadingVenue = false;
     });
+  }
+
+  Future<void> _loadFavorites() async {
+    final storage = await VenueStorage.create();
+    final venueId = storage.getActiveVenueId();
+    final token = venueId != null ? storage.getToken(venueId) : null;
+    if (token == null || token.isEmpty) return;
+
+    try {
+      final repo = ref.read(singerProfileRepoProvider);
+      final authState = ref.read(authProvider);
+      final userId = switch (authState) {
+        Authenticated(:final userId) => userId,
+        _ => null,
+      };
+      if (userId == null) return;
+
+      final favorites = await repo.fetchFavoriteSongs(userId);
+      if (!mounted) return;
+      setState(() {
+        _favoriteSongIds.clear();
+        _favoriteSongIds.addAll(favorites.map((f) => f.id));
+      });
+    } catch (_) {
+      // Silently ignore favorite load failures—stub time for song list
+    }
   }
 
   @override
@@ -76,9 +107,11 @@ class _SongBrowserScreenState extends ConsumerState<SongBrowserScreen> {
     });
   }
 
-  void _toggleFavorite(Song song) {
+  Future<void> _toggleFavorite(Song song) async {
+    final isCurrentlyFavorite = _favoriteSongIds.contains(song.id);
     setState(() {
-      if (_favoriteSongIds.contains(song.id)) {
+      _syncingFavoriteIds.add(song.id);
+      if (isCurrentlyFavorite) {
         _favoriteSongIds.remove(song.id);
       } else {
         _favoriteSongIds.add(song.id);
@@ -86,15 +119,75 @@ class _SongBrowserScreenState extends ConsumerState<SongBrowserScreen> {
     });
 
     final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Favorite saved locally for this session. Persistence is deferred.',
-        ),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    final mutation = ref.read(favoriteMutationProvider);
+
+    final authState = ref.read(authProvider);
+    final userId = switch (authState) {
+      Authenticated(:final userId) => userId,
+      _ => null,
+    };
+    if (userId == null) {
+      setState(() {
+        if (isCurrentlyFavorite) {
+          _favoriteSongIds.add(song.id);
+        } else {
+          _favoriteSongIds.remove(song.id);
+        }
+        _syncingFavoriteIds.remove(song.id);
+      });
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Sign in to save favorites')),
+      );
+      return;
+    }
+
+    try {
+      if (isCurrentlyFavorite) {
+        await mutation.removeFavorite(userId, song.id);
+        if (!mounted) return;
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(content: Text('Removed "${song.displayTitle}" from favorites')),
+        );
+      } else {
+        await mutation.addFavorite(
+          userId,
+          SongHistoryItem(
+            id: song.id,
+            songName: song.displayTitle,
+            artistName: song.displayArtist,
+            playedAt: DateTime.now(),
+          ),
+        );
+        if (!mounted) return;
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(content: Text('Added "${song.displayTitle}" to favorites')),
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+      // Revert optimistic change on failure
+      setState(() {
+        if (isCurrentlyFavorite) {
+          _favoriteSongIds.add(song.id);
+        } else {
+          _favoriteSongIds.remove(song.id);
+        }
+      });
+      final message = _cleanError(error);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not update favorite: $message')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _syncingFavoriteIds.remove(song.id);
+        });
+      }
+    }
   }
 
   Future<void> _requestSong(Song song) async {
@@ -299,6 +392,7 @@ class _SongBrowserScreenState extends ConsumerState<SongBrowserScreen> {
                         hasActiveFilters:
                             _selectedGenre != null || _selectedDecade != null,
                         favoriteSongIds: _favoriteSongIds,
+                        syncingFavoriteIds: _syncingFavoriteIds,
                         requestingSongIds: _requestingSongIds,
                         onFavoriteToggle: _toggleFavorite,
                         onRequestSong: _requestSong,
@@ -541,6 +635,7 @@ class _SongResults extends StatelessWidget {
   final bool hasMore;
   final bool hasActiveFilters;
   final Set<String> favoriteSongIds;
+  final Set<String> syncingFavoriteIds;
   final Set<String> requestingSongIds;
   final ValueChanged<Song> onFavoriteToggle;
   final ValueChanged<Song> onRequestSong;
@@ -554,6 +649,7 @@ class _SongResults extends StatelessWidget {
     required this.hasMore,
     required this.hasActiveFilters,
     required this.favoriteSongIds,
+    required this.syncingFavoriteIds,
     required this.requestingSongIds,
     required this.onFavoriteToggle,
     required this.onRequestSong,
@@ -591,6 +687,7 @@ class _SongResults extends StatelessWidget {
           return _SongCard(
             song: song,
             isFavorite: favoriteSongIds.contains(song.id),
+            isSyncingFavorite: syncingFavoriteIds.contains(song.id),
             isRequesting: requestingSongIds.contains(song.id),
             onFavoriteToggle: () => onFavoriteToggle(song),
             onRequestSong: () => onRequestSong(song),
@@ -604,6 +701,7 @@ class _SongResults extends StatelessWidget {
 class _SongCard extends StatelessWidget {
   final Song song;
   final bool isFavorite;
+  final bool isSyncingFavorite;
   final bool isRequesting;
   final VoidCallback onFavoriteToggle;
   final VoidCallback onRequestSong;
@@ -611,6 +709,7 @@ class _SongCard extends StatelessWidget {
   const _SongCard({
     required this.song,
     required this.isFavorite,
+    required this.isSyncingFavorite,
     required this.isRequesting,
     required this.onFavoriteToggle,
     required this.onRequestSong,
@@ -701,13 +800,24 @@ class _SongCard extends StatelessWidget {
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  tooltip: isFavorite ? 'Remove favorite' : 'Favorite song',
-                  onPressed: onFavoriteToggle,
-                  icon: Icon(
-                    isFavorite ? Icons.favorite : Icons.favorite_border,
-                  ),
-                  color: isFavorite ? theme.colorScheme.primary : null,
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    IconButton(
+                      tooltip: isFavorite ? 'Remove favorite' : 'Favorite song',
+                      onPressed: isSyncingFavorite ? null : onFavoriteToggle,
+                      icon: Icon(
+                        isFavorite ? Icons.favorite : Icons.favorite_border,
+                      ),
+                      color: isFavorite ? theme.colorScheme.primary : null,
+                    ),
+                    if (isSyncingFavorite)
+                      const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 FilledButton.icon(

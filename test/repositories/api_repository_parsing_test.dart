@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -7,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:scales_mobile/data/repositories/leaderboard_repository.dart';
 import 'package:scales_mobile/data/repositories/singer_profile_repository.dart';
 import 'package:scales_mobile/data/repositories/song_repository.dart';
+import 'package:scales_mobile/domain/entities/singer_profile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -98,6 +98,93 @@ void main() {
       expect(profile.songHistory.single.songName, 'Sweet Caroline');
       expect(profile.songHistory.single.artistName, 'Neil Diamond');
       expect(profile.performancesCount, 1);
+    });
+
+    test('parses paginated favorites list', () async {
+      final dio = _dioWithRoutes({
+        '/venues/venue_1/singers/favorites': _jsonResponse({
+          'items': [
+            {
+              'id': 'fav_1',
+              'song_id': 'song_1',
+              'title': 'Bohemian Rhapsody',
+              'artist': 'Queen',
+              'album': 'A Night at the Opera',
+              'genre': 'Rock',
+              'cover_art_url': null,
+              'duration_ms': 354000,
+              'created_at': '2026-05-10T12:00:00Z',
+            },
+            {
+              'id': 'fav_2',
+              'song_id': 'song_2',
+              'title': 'Sweet Caroline',
+              'artist': 'Neil Diamond',
+              'album': null,
+              'genre': 'Pop',
+              'cover_art_url': 'https://example.com/cover.png',
+              'duration_ms': 180000,
+              'created_at': '2026-05-11T08:30:00Z',
+            },
+          ],
+          'total': 2,
+          'page': 1,
+          'per_page': 20,
+        }),
+      });
+      final repository = SingerProfileRepositoryImpl(dio: dio);
+      final favorites = await repository.fetchFavoriteSongs('singer_1');
+
+      expect(favorites, hasLength(2));
+      expect(favorites.first.id, 'song_1');
+      expect(favorites.first.songName, 'Bohemian Rhapsody');
+      expect(favorites.first.artistName, 'Queen');
+      expect(favorites.last.id, 'song_2');
+      expect(favorites.last.songName, 'Sweet Caroline');
+      expect(favorites.last.artistName, 'Neil Diamond');
+    });
+
+    test('addFavoriteSong sends POST and accepts 201', () async {
+      RequestOptions? seenRequest;
+      final dio = _dioWithRoutes({
+        '/venues/venue_1/singers/favorites': (options) {
+          seenRequest = options;
+          return _jsonResponse({
+            'id': 'fav_new',
+            'song_id': 'song_3',
+            'title': 'Purple Rain',
+            'artist': 'Prince',
+            'created_at': '2026-05-12T10:00:00Z',
+          }, statusCode: 201)(options);
+        },
+      });
+      final repository = SingerProfileRepositoryImpl(dio: dio);
+      await repository.addFavoriteSong(
+        'singer_1',
+        SongHistoryItem(
+          id: 'song_3',
+          songName: 'Purple Rain',
+          artistName: 'Prince',
+          playedAt: DateTime(2026, 5, 12),
+        ),
+      );
+
+      expect(seenRequest?.method, 'POST');
+      expect(seenRequest?.data, {'song_id': 'song_3'});
+    });
+
+    test('removeFavoriteSong sends DELETE and accepts 204', () async {
+      RequestOptions? seenRequest;
+      final dio = _dioWithRoutes({
+        '/venues/venue_1/singers/favorites/song_1': (options) {
+          seenRequest = options;
+          return ResponseBody.fromString('', 204);
+        },
+      });
+      final repository = SingerProfileRepositoryImpl(dio: dio);
+      await repository.removeFavoriteSong('singer_1', 'song_1');
+
+      expect(seenRequest?.method, 'DELETE');
     });
   });
 

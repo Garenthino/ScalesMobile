@@ -29,6 +29,9 @@ class ApiEndpoints {
   static String queueVenue(String venueId) => '/venues/$venueId/queue/venue';
   static const String followSinger = '/social/follow';
   static const String share = '/social/share';
+  static String favorites(String venueId) => '/venues/$venueId/singers/favorites';
+  static String removeFavorite(String venueId, String songId) =>
+      '/venues/$venueId/singers/favorites/$songId';
 }
 
 /// HTTP status helpers.

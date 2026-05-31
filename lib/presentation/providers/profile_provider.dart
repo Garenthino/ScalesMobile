@@ -27,3 +27,34 @@ final favoriteSongsProvider = FutureProvider.autoDispose
   final repo = ref.watch(singerProfileRepoProvider);
   return repo.fetchFavoriteSongs(singerId);
 });
+
+/// Notifier to mutate favorites and invalidate the cached list.
+final favoriteMutationProvider = Provider<FavoriteMutation>((ref) {
+  return FavoriteMutation(
+    repo: ref.read(singerProfileRepoProvider),
+    invalidate: () {
+      ref.invalidate(favoriteSongsProvider);
+      ref.invalidate(singerProfileProvider);
+    },
+  );
+});
+
+class FavoriteMutation {
+  final SingerProfileRepository _repo;
+  final void Function() _invalidate;
+
+  const FavoriteMutation({
+    required this._repo,
+    required this._invalidate,
+  });
+
+  Future<void> addFavorite(String singerId, SongHistoryItem song) async {
+    await _repo.addFavoriteSong(singerId, song);
+    _invalidate();
+  }
+
+  Future<void> removeFavorite(String singerId, String songId) async {
+    await _repo.removeFavoriteSong(singerId, songId);
+    _invalidate();
+  }
+}

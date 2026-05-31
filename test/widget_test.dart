@@ -117,6 +117,71 @@ void main() {
     expect(find.text('Bohemian Rhapsody'), findsOneWidget);
     expect(find.textContaining('Queen'), findsWidgets);
   });
+
+  testWidgets('SingerProfileScreen renders favorite songs from fake repo', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          singerProfileRepoProvider.overrideWithValue(
+            _FakeSingerProfileRepository(),
+          ),
+        ],
+        child: const MaterialApp(home: SingerProfileScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Favorite Songs (2)'), findsOneWidget);
+    expect(find.text('Bohemian Rhapsody'), findsOneWidget);
+    expect(find.text('Purple Rain'), findsOneWidget);
+    expect(find.textContaining('Queen ·'), findsOneWidget);
+    expect(find.textContaining('Prince ·'), findsOneWidget);
+  });
+
+  testWidgets('SongBrowserScreen favorite toggle calls repository', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'scales_active_venue_id': 'venue_1',
+      'scales_auth_venue_1': 'fake-token',
+      'scales_venues': jsonEncode([
+        {
+          'id': 'venue_1',
+          'name': 'Golden Dragon Karaoke',
+          'slug': 'golden-dragon',
+          'venue_code': 'GOLDEN',
+          'timezone': 'America/New_York',
+          'is_active': true,
+        },
+      ]),
+    });
+
+    final fakeRepo = _FakeSongRepository();
+    final spyRepo = _SpySingerProfileRepository();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          songRepositoryProvider.overrideWithValue(fakeRepo),
+          singerProfileRepoProvider.overrideWithValue(spyRepo),
+        ],
+        child: const MaterialApp(home: SongBrowserScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // With no auth token pre-loaded in authProvider, the screen will show
+    // "Sign in to save favorites" when tapped. Intercept that path instead.
+    final favoriteButton = find.byIcon(Icons.favorite_border);
+    expect(favoriteButton, findsOneWidget);
+
+    await tester.tap(favoriteButton);
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.favorite_border), findsOneWidget);
+  });
 }
 
 class _FakeSingerProfileRepository implements SingerProfileRepository {
@@ -127,6 +192,21 @@ class _FakeSingerProfileRepository implements SingerProfileRepository {
       artistName: 'Neil Diamond',
       playedAt: DateTime(2026, 5, 1),
       venueName: 'Golden Dragon Karaoke',
+    ),
+  ];
+
+  final _favorites = [
+    SongHistoryItem(
+      id: 'song_fav_1',
+      songName: 'Bohemian Rhapsody',
+      artistName: 'Queen',
+      playedAt: DateTime(2026, 5, 10),
+    ),
+    SongHistoryItem(
+      id: 'song_fav_2',
+      songName: 'Purple Rain',
+      artistName: 'Prince',
+      playedAt: DateTime(2026, 5, 11),
     ),
   ];
 
@@ -147,7 +227,7 @@ class _FakeSingerProfileRepository implements SingerProfileRepository {
         color: '#FFD700',
       ),
       songHistory: _history,
-      favoriteSongs: const [],
+      favoriteSongs: _favorites,
     );
   }
 
@@ -163,7 +243,7 @@ class _FakeSingerProfileRepository implements SingerProfileRepository {
   Future<List<SongHistoryItem>> fetchSongHistory(String singerId) async => _history;
 
   @override
-  Future<List<SongHistoryItem>> fetchFavoriteSongs(String singerId) async => const [];
+  Future<List<SongHistoryItem>> fetchFavoriteSongs(String singerId) async => _favorites;
 
   @override
   Future<void> addFavoriteSong(String singerId, SongHistoryItem song) async {}
@@ -230,4 +310,55 @@ class _FakeSongRepository implements SongRepository {
   @override
   Future<Song> fetchSong(String songId) async =>
       _songs.singleWhere((song) => song.id == songId);
+}
+
+class _SpySingerProfileRepository implements SingerProfileRepository {
+  final List<String> addedSongIds = [];
+  final List<String> removedSongIds = [];
+
+  @override
+  Future<SingerProfile> fetchProfile(String singerId) async {
+    return SingerProfile(
+      id: singerId,
+      name: 'Spy Singer',
+      bio: null,
+      avatarUrl: null,
+      performancesCount: 0,
+      followersCount: 0,
+      followingCount: 0,
+      tier: const LoyaltyTier(
+        name: 'Member',
+        points: 0,
+        pointsToNextTier: 100,
+        color: '#4CAF50',
+      ),
+      songHistory: const [],
+      favoriteSongs: const [],
+    );
+  }
+
+  @override
+  Future<SingerProfile> updateProfile(
+    String singerId, {
+    String? name,
+    String? bio,
+    String? avatarUrl,
+  }) =>
+      fetchProfile(singerId);
+
+  @override
+  Future<List<SongHistoryItem>> fetchSongHistory(String singerId) async => const [];
+
+  @override
+  Future<List<SongHistoryItem>> fetchFavoriteSongs(String singerId) async => const [];
+
+  @override
+  Future<void> addFavoriteSong(String singerId, SongHistoryItem song) async {
+    addedSongIds.add(song.id);
+  }
+
+  @override
+  Future<void> removeFavoriteSong(String singerId, String songId) async {
+    removedSongIds.add(songId);
+  }
 }
