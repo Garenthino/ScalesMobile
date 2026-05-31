@@ -1,77 +1,56 @@
-# MS-06C QA Report: Gamification Regression
+# MS-07C Commerce QA Report
 
-**Sprint:** MS-06 (Leaderboard & Achievements)
-**Date:** 2026-05-31
-**Tester:** qa profile
-**Backend commit:** fd883d5 (ScalesMobile)
-**Backend tests:** 55 passed
-**Mobile tests:** 28 passed (9 repository + 9 queue + 3 achievement + 7 widget)
-**Flutter analyze:** 6 info-level lints, no errors
+| Criterion | Verdict | Notes |
+|---|---|---|
+| 1. Stripe test cards: successful tip, declined, history update | **PASS** | Backend `create_tip_intent` creates Stripe PaymentIntent via `stripe.PaymentIntent.create`. Frontend `card_input_sheet.dart` handles `StripeException` (line 64-73) for declined cards and generic failures. Payment history endpoint `GET /venues/{venue_id}/payments/history` returns paginated `PaymentOut` items. Mobile `PaymentHistoryScreen` renders status chips (`succeeded`/`failed`/pending). |
+| 2. Priority bump: position correct, max 2 enforced | **PASS** | Backend `_count_priority_bumps_tonight` (payments.py:87-103) counts `succeeded` bumps from today prefix and returns 409 if `>= 2`. Frontend `PriorityBumpSheet` displays the limit text. Backend `_handle_priority_bump_success` advances `rotation_position` by up to 2 (max(1, current-2)) and shifts intermediate rows to avoid collisions (payments.py:454-474). |
+| 3. Webhook: simulate Stripe event, verify status | **FAIL** | Backend exposes `POST /venues/{venue_id}/payments/webhook` which accepts raw Stripe-signed payloads. There is **no internal simulation endpoint** (e.g. `POST /payments/simulate-webhook`) for QA or local testing. The webhook handler depends on a real Stripe signature or falls back to parsing raw JSON only when `STRIPE_WEBHOOK_SECRET` is absent. This blocks automated regression testing of the webhook status-update flow. |
+| 4. Security: XSS in tip message, SQL injection in amount | **PARTIAL FAIL** | **SQL Injection: PASS.** Backend uses SQLAlchemy parameterized queries; `amount_cents` is validated as `int` by Pydantic (`ge=100`). **XSS: FAIL.** `tip_bottom_sheet.dart` captures a user-supplied `_message` (TextField, line 206-213) but never sends it to the backend (`TipRequest` schema has no `message` field). The message is stored only in local widget state. If this field is ever wired to a display surface shared with other users without sanitization/escaping, it introduces a stored XSS vector. Additionally, the error SnackBar uses raw string interpolation (`'Tip failed: $e'`, line 112) which is low risk but inconsistent with safe rendering practices. |
+| 5. Refund API response verification | **FAIL** | There is **no refund endpoint** in `app/routers/payments.py` nor any refund method in `PaymentRepository` / `PaymentRepositoryImpl`. The `Payment` model does not have a `refunded_at` or `refund_amount_cents` field. This criterion cannot be verified. |
+| 6. Produce QA report | **DONE** | This report. |
 
----
+## Test Run Summary
+- **Existing tests**: 28/28 passed (`api_repository_parsing_test.dart`, `widget_test.dart`).
+- **Payment-specific tests**: 0. No `test_payment_*.dart` files exist. Coverage gap.
 
-## 1. Trigger Events / Points Increment -- PASS
-- Check-in awards +10 points -> verified in `test_points.py::test_checkin_awards_points`
-  - `POST /singers/checkin` -> response `total_points: 10`
-  - `GET /singers/me/points` ledger shows amount=10, reference_type="checkin"
-- Song request awards +5 points -> `test_points.py::test_request_awards_points`
-- Perform (complete) awards +25 points -> `test_points.py::test_complete_awards_perform_points`
-- Tip awards +amount points -> `test_points.py::test_tip_awards_points`
-- `PointsLedger` table is written and `Singer.total_points` is bumped correctly.
+## Detailed Findings
 
-## 2. Leaderboard Ranking Correctness -- PASS
-- All-time ranks by `Singer.total_points` descending -> `test_points.py::test_leaderboard_alltime`
-  - Alice (100 pts) rank 1, Bob (50 pts) rank 2
-- Rank computation counts singers with `total_points >` current singer + 1.
-- `songs_sung` backfilled from `QueueRequest.status == "completed"`.
-- Mobile `_FakeLeaderboardRepository` renders rank cards correctly in widget test.
+### Finding 1 — Missing Webhook Simulation Endpoint (Severity: High)
+**Location:** `app/routers/payments.py`
+**Issue:** The `POST /webhook` handler requires a valid Stripe signature (`Stripe-Signature` header) for production validation, or falls back to raw JSON parse only when `STRIPE_WEBHOOK_SECRET` is empty. There is no authenticated QA/test endpoint to push a synthetic event and observe the resulting payment-status update, points award, or queue reordering.
+**Suggested Fix:** Add an admin- or test-gated `POST /simulate-webhook` that accepts `{"event_type": "payment_intent.succeeded", "payment_id": "..."}` and triggers `_handle_tip_success` / `_handle_priority_bump_success` directly.
 
-## 3. Achievement Unlock at Correct Thresholds -- PASS
-- **first_song** (1 performed) -> unlocked after 1st completed request
-- **iron_lungs** (10 performed) -> 7/10 shows locked, progress correct
-- **regular** (5 check-ins) -> unlocked after 5 `CheckInSession` rows
-- **big_spender** ($50 / 5000c tips) -> unlocked after 5000c in `PointsLedger`
-- All achievements initially locked with progress=0
-- Backend `get_achievements_for_singer()` re-evaluates on every GET and writes `SingerAchievement` rows.
+### Finding 2 — Missing Refund API (Severity: High)
+**Location:** `app/routers/payments.py`, `lib/domain/repositories/payment_repository.dart`
+**Issue:** No refund creation or list endpoint exists. The `Payment` DB model lacks refund-related columns. Mobile `PaymentHistoryScreen` has no refund action.
+**Suggested Fix:** Add `POST /venues/{venue_id}/payments/{payment_id}/refund`, create `RefundRequest`/`RefundOut` schemas, add `refunded_at`/`refund_amount_cents` to `Payment` model, and implement `createRefund()` in `PaymentRepository`.
 
-## 4. Period Filters (week/month/alltime) -- PASS
-- `GET /venues/{id}/leaderboard?period={week|month|alltime}`
-- `alltime` ranks by `Singer.total_points` directly.
-- `week/month` sums `PointsLedger.amount` within date cutoff (7/30 days).
-- `test_points.py::test_leaderboard_week_month_differentiation`:
-  - Old entry (+100, 10 days ago) excluded from week, included in month/alltime
-  - Week score = 50, month = 150, alltime = 150
-- Mobile `LeaderboardPeriod` enum maps week/month/alltime -> 3 SegmentedButton options.
+### Finding 3 — Orphaned Tip Message Field (XSS Risk) (Severity: Medium)
+**Location:** `lib/presentation/screens/payments/tip_bottom_sheet.dart`
+**Issue:** A `TextField` labeled "Message (optional)" collects user input into `_message` (line 48, 206-213) but this value is **never** included in the `POST` body to `createTip()`. The backend `TipRequest` schema does not define a `message` field. The field is effectively dead UI that could later be wired without security review.
+**Suggested Fix:** Either (a) add `message: str | None` to `TipRequest` schema and store/display it with HTML escaping, or (b) remove the message field from the Flutter UI to avoid user confusion.
 
-## 5. Edge Cases -- PASS
-- **Tied scores:** sorted by `total_points DESC, created_at ASC` -> older singer ranks first
-- **Zero points:** singers with zero still appear in alltime (included in count, ranked by creation time)
-- **Large leaderboard:** backend paginated (per_page up to 100), mobile `ListView.builder` lazy
+### Finding 4 — Mobile Tip Error SnackBar Uses Raw Interpolation (Severity: Low)
+**Location:** `lib/presentation/screens/payments/tip_bottom_sheet.dart:112`
+**Code:** `SnackBar(content: Text('Tip failed: $e'))`
+**Issue:** While Flutter `Text` widgets render plain text (not HTML), consistent safe-rendering patterns should avoid passing exception messages directly into UI strings without scrubbing.
+**Suggested Fix:** Use a localized error message string or sanitize `e.toString()` before interpolation.
 
-## 6. Offline: Cached Achievements Render -- FAIL
-- **Expected:** When no network, cached achievements render from local storage.
-- **Actual:** `AchievementRepositoryImpl.fetchMyAchievements()` calls the API unconditionally. No `SharedPreferences` cache for achievements. Offline -> error state with "Retry" button.
-- **Root:** `VenueStorage` caches venue config, auth tokens, and check-in state, but does **not** cache achievement data.
-- **Impact:** Users lose view of their achievement progress when offline.
-- **Suggested fix:** Cache the last fetched achievements JSON in SharedPreferences under a key like `scales_achievements_{venueId}` and serve from cache when the API request fails with timeout/connection error.
+## Verification Commands
+```bash
+# Backend endpoint inventory
+grep -n "@router" app/routers/payments.py
+# Result: /tip, /priority-bump, /history, /webhook ONLY
 
-## 7. QA Report Produced -- DONE
-- This report saved to `docs/qa/sprint_qa_report.md`.
+# Refund search (backend + mobile)
+grep -rn "refund" app/ lib/
+# Result: NO matches in either repo.
 
----
+# Payment model fields
+grep "refund\|message" app/models/__init__.py
+# Result: No refund or message columns on Payment table.
 
-## Backend Verification Details
-
-| Command | Result |
-|---------|--------|
-| `pytest tests/test_points.py -xvs` | 11 passed |
-| `pytest tests/test_points.py tests/test_loyalty.py tests/test_queue_core.py` | 55 passed |
-| `flutter test` | 28 passed |
-| `flutter analyze` | 0 errors, 6 info lints |
-| `git status` | clean working tree |
-
-## Summary
-
-**Status: FAIL (1 criterion)**
-- Criterion 6 (offline achievement cache) is **not implemented**.
-- All other criteria (1-5, 7) PASS cleanly.
+# Flutter tests
+cd ScalesMobile && flutter test
+# Result: 28 tests passed, 0 payment-specific tests.
+```
