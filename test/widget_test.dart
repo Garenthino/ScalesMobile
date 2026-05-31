@@ -1,29 +1,55 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:scales_mobile/domain/entities/singer_profile.dart';
+import 'package:scales_mobile/domain/entities/song.dart';
+import 'package:scales_mobile/domain/repositories/singer_repository.dart';
+import 'package:scales_mobile/domain/repositories/song_repository.dart';
 import 'package:scales_mobile/main.dart';
-import 'package:scales_mobile/presentation/screens/singer/singer_profile_screen.dart';
+import 'package:scales_mobile/presentation/providers/profile_provider.dart';
+import 'package:scales_mobile/presentation/providers/social_provider.dart';
+import 'package:scales_mobile/presentation/providers/song_search_provider.dart';
 import 'package:scales_mobile/presentation/screens/check_in/check_in_screen.dart';
 import 'package:scales_mobile/presentation/screens/leaderboard/leaderboard_screen.dart';
+import 'package:scales_mobile/presentation/screens/singer/singer_profile_screen.dart';
+import 'package:scales_mobile/presentation/screens/songs/song_browser_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  testWidgets('ScalesApp displays splash on first frame', (WidgetTester tester) async {
-    await tester.pumpWidget(const ProviderScope(child: ScalesApp()));
-    await tester.pump();
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('SingerProfileScreen renders with providers', (WidgetTester tester) async {
+  testWidgets('ScalesApp displays branded splash on first frame', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const ProviderScope(child: ScalesApp()));
+    await tester.pump();
+    expect(find.text('Scales'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+  });
+
+  testWidgets('SingerProfileScreen renders with provider override', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(home: SingerProfileScreen()),
+      ProviderScope(
+        overrides: [
+          singerProfileRepoProvider.overrideWithValue(
+            _FakeSingerProfileRepository(),
+          ),
+        ],
+        child: const MaterialApp(home: SingerProfileScreen()),
       ),
     );
     await tester.pumpAndSettle();
 
-    // Profile screen should eventually display the singer name
-    expect(find.textContaining('Alex Singer'), findsOneWidget);
     expect(find.text('Profile'), findsOneWidget);
+    expect(find.text('Alex Singer'), findsOneWidget);
+    expect(find.text('Gold Tier'), findsOneWidget);
+    expect(find.text('Sweet Caroline'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
@@ -40,10 +66,15 @@ void main() {
     expect(find.byType(TextField), findsOneWidget);
   });
 
-  testWidgets('LeaderboardScreen renders with mock data', (WidgetTester tester) async {
+  testWidgets('LeaderboardScreen renders with repository override', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(home: LeaderboardScreen(venueId: 'test_venue')),
+      ProviderScope(
+        overrides: [
+          leaderboardRepoProvider.overrideWithValue(_FakeLeaderboardRepository()),
+        ],
+        child: const MaterialApp(home: LeaderboardScreen(venueId: 'test_venue')),
       ),
     );
     await tester.pumpAndSettle();
@@ -51,5 +82,152 @@ void main() {
     expect(find.text('Leaderboard'), findsOneWidget);
     expect(find.text('Alex Singer'), findsOneWidget);
     expect(find.text('1240 pts'), findsOneWidget);
+    expect(find.text('Bailey Ballad'), findsOneWidget);
   });
+
+  testWidgets('SongBrowserScreen renders fake catalog without live network', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'scales_active_venue_id': 'venue_1',
+      'scales_venues': jsonEncode([
+        {
+          'id': 'venue_1',
+          'name': 'Golden Dragon Karaoke',
+          'slug': 'golden-dragon',
+          'venue_code': 'GOLDEN',
+          'timezone': 'America/New_York',
+          'is_active': true,
+        },
+      ]),
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          songRepositoryProvider.overrideWithValue(_FakeSongRepository()),
+        ],
+        child: const MaterialApp(home: SongBrowserScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Browse Songs'), findsOneWidget);
+    expect(find.text('Golden Dragon Karaoke'), findsOneWidget);
+    expect(find.text('Bohemian Rhapsody'), findsOneWidget);
+    expect(find.textContaining('Queen'), findsWidgets);
+  });
+}
+
+class _FakeSingerProfileRepository implements SingerProfileRepository {
+  final _history = [
+    SongHistoryItem(
+      id: 'hist_1',
+      songName: 'Sweet Caroline',
+      artistName: 'Neil Diamond',
+      playedAt: DateTime(2026, 5, 1),
+      venueName: 'Golden Dragon Karaoke',
+    ),
+  ];
+
+  @override
+  Future<SingerProfile> fetchProfile(String singerId) async {
+    return SingerProfile(
+      id: singerId,
+      name: 'Alex Singer',
+      bio: 'Karaoke regular',
+      avatarUrl: null,
+      performancesCount: _history.length,
+      followersCount: 12,
+      followingCount: 4,
+      tier: const LoyaltyTier(
+        name: 'Gold',
+        points: 1240,
+        pointsToNextTier: 260,
+        color: '#FFD700',
+      ),
+      songHistory: _history,
+      favoriteSongs: const [],
+    );
+  }
+
+  @override
+  Future<SingerProfile> updateProfile(
+    String singerId, {
+    String? name,
+    String? bio,
+    String? avatarUrl,
+  }) => fetchProfile(singerId);
+
+  @override
+  Future<List<SongHistoryItem>> fetchSongHistory(String singerId) async => _history;
+
+  @override
+  Future<List<SongHistoryItem>> fetchFavoriteSongs(String singerId) async => const [];
+
+  @override
+  Future<void> addFavoriteSong(String singerId, SongHistoryItem song) async {}
+
+  @override
+  Future<void> removeFavoriteSong(String singerId, String songId) async {}
+}
+
+class _FakeLeaderboardRepository implements LeaderboardRepository {
+  @override
+  Future<List<LeaderboardEntry>> fetchLeaderboard(
+    String venueId, {
+    int limit = 20,
+  }) async {
+    return const [
+      LeaderboardEntry(
+        singerId: 'singer_1',
+        name: 'Alex Singer',
+        points: 1240,
+        rank: 1,
+      ),
+      LeaderboardEntry(
+        singerId: 'singer_2',
+        name: 'Bailey Ballad',
+        points: 930,
+        rank: 2,
+      ),
+    ];
+  }
+}
+
+class _FakeSongRepository implements SongRepository {
+  final _songs = const [
+    Song(
+      id: 'song_1',
+      venueId: 'venue_1',
+      title: 'Bohemian Rhapsody',
+      artist: 'Queen',
+      album: 'A Night at the Opera',
+      genre: 'Rock',
+      durationMs: 354000,
+      year: 1975,
+      isAvailable: true,
+      isActive: true,
+    ),
+  ];
+
+  @override
+  Future<List<Song>> fetchSongs({
+    int page = 1,
+    int perPage = 20,
+    String? query,
+  }) async => _songs;
+
+  @override
+  Future<List<Song>> searchSongs(
+    String query, {
+    int page = 1,
+    int perPage = 20,
+  }) async => _songs
+      .where((song) => song.title.toLowerCase().contains(query.toLowerCase()))
+      .toList(growable: false);
+
+  @override
+  Future<Song> fetchSong(String songId) async =>
+      _songs.singleWhere((song) => song.id == songId);
 }
