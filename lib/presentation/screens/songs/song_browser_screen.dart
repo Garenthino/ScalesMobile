@@ -222,7 +222,7 @@ class _SongBrowserScreenState extends ConsumerState<SongBrowserScreen> {
       final result = await ref
           .read(queueRepositoryProvider)
           .joinQueue(venueId: venue.id, songId: song.id);
-      ref.invalidate(myQueueStatusProvider(venue.id));
+      ref.invalidate(myQueueProvider(venue.id));
       if (!mounted) return;
       setState(() {
         _lastQueueResult = result;

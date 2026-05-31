@@ -16,8 +16,14 @@ final activeVenueProvider = FutureProvider.autoDispose<CachedVenue?>((
   return storage.getActiveVenue();
 });
 
-final myQueueStatusProvider = FutureProvider.autoDispose
+final myQueueProvider = FutureProvider.autoDispose
     .family<List<QueueStatusItem>, String>((ref, venueId) async {
       final repository = ref.watch(queueRepositoryProvider);
       return repository.fetchMyQueueStatus(venueId: venueId);
+    });
+
+final myQueueHistoryProvider = FutureProvider.autoDispose
+    .family<QueueHistoryResult, String>((ref, venueId) async {
+      final repository = ref.watch(queueRepositoryProvider);
+      return repository.fetchMyQueueHistory(venueId: venueId);
     });

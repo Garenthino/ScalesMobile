@@ -54,16 +54,47 @@ class QueueRepositoryImpl implements QueueRepository {
   }) async {
     await _requireAuthToken(venueId);
     try {
-      final response = await _dio.get(ApiEndpoints.queueStatus(venueId));
+      final response = await _dio.get(ApiEndpoints.myQueue(venueId));
       if (response.statusCode == StatusCodes.ok &&
-          response.data is List<dynamic>) {
-        return (response.data as List<dynamic>)
-            .whereType<Map<String, dynamic>>()
-            .map(QueueStatusItemModel.fromJson)
-            .toList(growable: false);
+          response.data is Map<String, dynamic>) {
+        final data = response.data as Map<String, dynamic>;
+        final rawItems = data['items'];
+        if (rawItems is List<dynamic>) {
+          return rawItems
+              .whereType<Map<String, dynamic>>()
+              .map(QueueStatusItemModel.fromJson)
+              .toList(growable: false);
+        }
+        return const [];
       }
       throw Exception(
         _errorMessage(response, fallback: 'Could not load your queue.'),
+      );
+    } on DioException catch (e) {
+      throw Exception(_dioErrorMessage(e));
+    }
+  }
+
+  @override
+  Future<QueueHistoryResult> fetchMyQueueHistory({
+    required String venueId,
+    int page = 1,
+    int perPage = 20,
+  }) async {
+    await _requireAuthToken(venueId);
+    try {
+      final response = await _dio.get(
+        ApiEndpoints.myQueueHistory(venueId),
+        queryParameters: {'page': page, 'per_page': perPage},
+      );
+      if (response.statusCode == StatusCodes.ok &&
+          response.data is Map<String, dynamic>) {
+        return QueueHistoryResultModel.fromJson(
+          response.data as Map<String, dynamic>,
+        );
+      }
+      throw Exception(
+        _errorMessage(response, fallback: 'Could not load queue history.'),
       );
     } on DioException catch (e) {
       throw Exception(_dioErrorMessage(e));

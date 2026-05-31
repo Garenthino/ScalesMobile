@@ -10,6 +10,12 @@ abstract class QueueRepository {
 
   Future<List<QueueStatusItem>> fetchMyQueueStatus({required String venueId});
 
+  Future<QueueHistoryResult> fetchMyQueueHistory({
+    required String venueId,
+    int page,
+    int perPage,
+  });
+
   Future<int> leaveQueue({required String venueId, String? requestId});
 
   Future<PublicQueue> fetchVenueQueue({required String venueId});

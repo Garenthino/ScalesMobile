@@ -9,6 +9,7 @@ import 'package:scales_mobile/data/repositories/leaderboard_repository.dart';
 import 'package:scales_mobile/data/repositories/singer_profile_repository.dart';
 import 'package:scales_mobile/data/repositories/social_repository.dart';
 import 'package:scales_mobile/data/repositories/song_repository.dart';
+import 'package:scales_mobile/data/repositories/queue_repository.dart';
 import 'package:scales_mobile/domain/entities/singer_profile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -470,6 +471,127 @@ void main() {
       final body = seenRequest!.data as Map<String, dynamic>;
       expect(body['content_type'], 'generic');
       expect(body['content_id'], 'singer_1');
+    });
+  });
+
+  group('QueueRepositoryImpl', () {
+    test('fetchMyQueueStatus parses SingerQueueOut wrapper', () async {
+      final dio = _dioWithRoutes({
+        '/venues/venue_1/singers/me/queue': _jsonResponse({
+          'items': [
+            {
+              'request_id': 'req_1',
+              'position': 3,
+              'status': 'approved',
+              'song_title': 'Bohemian Rhapsody',
+              'song_artist': 'Queen',
+              'song_duration_ms': 354000,
+              'eta_seconds': 420,
+              'notes': null,
+              'requested_at': '2026-05-31T20:00:00Z',
+            },
+          ],
+          'total': 1,
+        }),
+      });
+      final repository = QueueRepositoryImpl(dio: dio);
+
+      final items = await repository.fetchMyQueueStatus(venueId: 'venue_1');
+
+      expect(items, hasLength(1));
+      expect(items.first.requestId, 'req_1');
+      expect(items.first.position, 3);
+      expect(items.first.status, 'approved');
+      expect(items.first.etaSeconds, 420);
+    });
+
+    test('fetchMyQueueStatus returns empty list on empty wrapper', () async {
+      final dio = _dioWithRoutes({
+        '/venues/venue_1/singers/me/queue': _jsonResponse({
+          'items': [],
+          'total': 0,
+        }),
+      });
+      final repository = QueueRepositoryImpl(dio: dio);
+
+      final items = await repository.fetchMyQueueStatus(venueId: 'venue_1');
+
+      expect(items, isEmpty);
+    });
+
+    test('fetchMyQueueHistory parses paginated SingerQueueHistoryOut', () async {
+      final dio = _dioWithRoutes({
+        '/venues/venue_1/singers/me/queue/history': _jsonResponse({
+          'items': [
+            {
+              'request_id': 'req_h1',
+              'song_title': 'Sweet Caroline',
+              'song_artist': 'Neil Diamond',
+              'genre': 'Pop',
+              'status': 'completed',
+              'requested_at': '2026-05-30T20:00:00Z',
+              'played_at': '2026-05-30T20:45:00Z',
+              'notes': null,
+            },
+            {
+              'request_id': 'req_h2',
+              'song_title': 'Purple Rain',
+              'song_artist': 'Prince',
+              'genre': 'Rock',
+              'status': 'skipped',
+              'requested_at': '2026-05-29T20:00:00Z',
+              'played_at': null,
+              'notes': 'Too crowded',
+            },
+          ],
+          'total': 2,
+          'page': 1,
+          'per_page': 20,
+        }),
+      });
+      final repository = QueueRepositoryImpl(dio: dio);
+
+      final result = await repository.fetchMyQueueHistory(venueId: 'venue_1');
+
+      expect(result.items, hasLength(2));
+      expect(result.total, 2);
+      expect(result.page, 1);
+      expect(result.perPage, 20);
+      expect(result.items.first.requestId, 'req_h1');
+      expect(result.items.first.status, 'completed');
+      expect(result.items.first.playedAt, '2026-05-30T20:45:00Z');
+      expect(result.items.last.requestId, 'req_h2');
+      expect(result.items.last.status, 'skipped');
+      expect(result.items.last.notes, 'Too crowded');
+    });
+
+    test('joinQueue parses QueueJoinResponse', () async {
+      final dio = _dioWithRoutes({
+        '/venues/venue_1/queue/join': _jsonResponse({
+          'request_id': 'req_new',
+          'estimated_position': 5,
+          'warning': null,
+        }, statusCode: 201),
+      });
+      final repository = QueueRepositoryImpl(dio: dio);
+
+      final result = await repository.joinQueue(venueId: 'venue_1', songId: 'song_1');
+
+      expect(result.requestId, 'req_new');
+      expect(result.estimatedPosition, 5);
+    });
+
+    test('leaveQueue parses removed count', () async {
+      final dio = _dioWithRoutes({
+        '/venues/venue_1/queue/leave': _jsonResponse({
+          'removed': 2,
+        }),
+      });
+      final repository = QueueRepositoryImpl(dio: dio);
+
+      final removed = await repository.leaveQueue(venueId: 'venue_1');
+
+      expect(removed, 2);
     });
   });
 }

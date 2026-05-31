@@ -100,6 +100,56 @@ class PublicQueueModel extends PublicQueue {
   }
 }
 
+class QueueHistoryItemModel extends QueueHistoryItem {
+  const QueueHistoryItemModel({
+    required super.requestId,
+    required super.songTitle,
+    required super.songArtist,
+    super.genre,
+    required super.status,
+    required super.requestedAt,
+    super.playedAt,
+    super.notes,
+  });
+
+  factory QueueHistoryItemModel.fromJson(Map<String, dynamic> json) {
+    return QueueHistoryItemModel(
+      requestId: json['request_id']?.toString() ?? '',
+      songTitle: json['song_title']?.toString() ?? 'Unknown song',
+      songArtist: json['song_artist']?.toString() ?? 'Unknown artist',
+      genre: json['genre']?.toString(),
+      status: json['status']?.toString() ?? 'completed',
+      requestedAt: json['requested_at']?.toString() ?? '',
+      playedAt: json['played_at']?.toString(),
+      notes: json['notes']?.toString(),
+    );
+  }
+}
+
+class QueueHistoryResultModel extends QueueHistoryResult {
+  const QueueHistoryResultModel({
+    required super.items,
+    required super.total,
+    required super.page,
+    required super.perPage,
+  });
+
+  factory QueueHistoryResultModel.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['items'];
+    return QueueHistoryResultModel(
+      items: rawItems is List<dynamic>
+          ? rawItems
+                .whereType<Map<String, dynamic>>()
+                .map(QueueHistoryItemModel.fromJson)
+                .toList(growable: false)
+          : const [],
+      total: _intValue(json['total']),
+      page: _intValue(json['page']),
+      perPage: _intValue(json['per_page']),
+    );
+  }
+}
+
 int _intValue(Object? value) => _intOrNull(value) ?? 0;
 
 int? _intOrNull(Object? value) {

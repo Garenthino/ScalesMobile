@@ -27,6 +27,8 @@ class ApiEndpoints {
   static String queueStatus(String venueId) => '/venues/$venueId/queue/status';
   static String queueLeave(String venueId) => '/venues/$venueId/queue/leave';
   static String queueVenue(String venueId) => '/venues/$venueId/queue/venue';
+  static String myQueue(String venueId) => '/venues/$venueId/singers/me/queue';
+  static String myQueueHistory(String venueId) => '/venues/$venueId/singers/me/queue/history';
   static String follow(String venueId, String followeeId) =>
       '/venues/$venueId/singers/follow/$followeeId';
   static String followStatus(String venueId, String followeeId) =>

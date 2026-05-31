@@ -32,6 +32,44 @@ class QueueStatusItem {
   });
 }
 
+/// History item for a past queue request.
+class QueueHistoryItem {
+  final String requestId;
+  final String songTitle;
+  final String songArtist;
+  final String? genre;
+  final String status;
+  final String requestedAt;
+  final String? playedAt;
+  final String? notes;
+
+  const QueueHistoryItem({
+    required this.requestId,
+    required this.songTitle,
+    required this.songArtist,
+    this.genre,
+    required this.status,
+    required this.requestedAt,
+    this.playedAt,
+    this.notes,
+  });
+}
+
+/// Paginated history result.
+class QueueHistoryResult {
+  final List<QueueHistoryItem> items;
+  final int total;
+  final int page;
+  final int perPage;
+
+  const QueueHistoryResult({
+    required this.items,
+    required this.total,
+    required this.page,
+    required this.perPage,
+  });
+}
+
 /// Public venue queue item without sensitive singer data.
 class PublicQueueItem {
   final int position;
