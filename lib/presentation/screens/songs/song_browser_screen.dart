@@ -2,7 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:scales_mobile/core/constants/app_constants.dart';
+import 'package:scales_mobile/domain/entities/queue_request.dart';
 import 'package:scales_mobile/domain/entities/song.dart';
+import 'package:scales_mobile/presentation/providers/queue_provider.dart';
 import 'package:scales_mobile/presentation/providers/song_search_provider.dart';
 import 'package:scales_mobile/services/venue_storage.dart';
 
@@ -16,10 +20,12 @@ class SongBrowserScreen extends ConsumerStatefulWidget {
 class _SongBrowserScreenState extends ConsumerState<SongBrowserScreen> {
   final _searchController = TextEditingController();
   final Set<String> _favoriteSongIds = <String>{};
+  final Set<String> _requestingSongIds = <String>{};
 
   String? _selectedGenre;
   int? _selectedDecade;
   CachedVenue? _activeVenue;
+  QueueJoinResult? _lastQueueResult;
   bool _isLoadingVenue = true;
   Timer? _searchDebounce;
 
@@ -91,6 +97,75 @@ class _SongBrowserScreenState extends ConsumerState<SongBrowserScreen> {
     );
   }
 
+  Future<void> _requestSong(Song song) async {
+    final venue = _activeVenue;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+
+    if (venue == null) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Select an active venue before requesting a song.'),
+        ),
+      );
+      return;
+    }
+
+    if (!song.isAvailable) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('This song is currently unavailable.')),
+      );
+      return;
+    }
+
+    if (_requestingSongIds.contains(song.id)) return;
+
+    setState(() {
+      _requestingSongIds.add(song.id);
+      _lastQueueResult = null;
+    });
+
+    try {
+      final result = await ref
+          .read(queueRepositoryProvider)
+          .joinQueue(venueId: venue.id, songId: song.id);
+      ref.invalidate(myQueueStatusProvider(venue.id));
+      if (!mounted) return;
+      setState(() {
+        _lastQueueResult = result;
+      });
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            result.warning?.isNotEmpty == true
+                ? '${result.warning} Position #${result.estimatedPosition}.'
+                : 'Requested "${song.displayTitle}". You are #${result.estimatedPosition} in queue.',
+          ),
+          action: SnackBarAction(
+            label: 'My Queue',
+            onPressed: () => context.go(RoutePaths.singerQueue),
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(_cleanError(error))));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _requestingSongIds.remove(song.id);
+        });
+      }
+    }
+  }
+
+  String _cleanError(Object error) {
+    final message = error.toString();
+    return message.startsWith('Exception: ')
+        ? message.substring('Exception: '.length)
+        : message;
+  }
+
   List<Song> _applyFilters(List<Song> songs) {
     return songs
         .where((song) {
@@ -155,6 +230,11 @@ class _SongBrowserScreenState extends ConsumerState<SongBrowserScreen> {
       body: Column(
         children: [
           _Header(venue: _activeVenue, isLoadingVenue: _isLoadingVenue),
+          if (_lastQueueResult != null)
+            _QueueRequestResult(
+              result: _lastQueueResult!,
+              onViewQueue: () => context.go(RoutePaths.singerQueue),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: TextField(
@@ -219,7 +299,9 @@ class _SongBrowserScreenState extends ConsumerState<SongBrowserScreen> {
                         hasActiveFilters:
                             _selectedGenre != null || _selectedDecade != null,
                         favoriteSongIds: _favoriteSongIds,
+                        requestingSongIds: _requestingSongIds,
                         onFavoriteToggle: _toggleFavorite,
+                        onRequestSong: _requestSong,
                         onRefresh: () => ref
                             .read(songSearchProvider.notifier)
                             .search(_searchController.text),
@@ -299,6 +381,67 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QueueRequestResult extends StatelessWidget {
+  final QueueJoinResult result;
+  final VoidCallback onViewQueue;
+
+  const _QueueRequestResult({required this.result, required this.onViewQueue});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.check_circle,
+            color: theme.colorScheme.onTertiaryContainer,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Song requested',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onTertiaryContainer,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'You are #${result.estimatedPosition} in the queue.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onTertiaryContainer,
+                  ),
+                ),
+                if (result.warning?.isNotEmpty == true) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    result.warning!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onTertiaryContainer,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          TextButton(onPressed: onViewQueue, child: const Text('My Queue')),
         ],
       ),
     );
@@ -398,7 +541,9 @@ class _SongResults extends StatelessWidget {
   final bool hasMore;
   final bool hasActiveFilters;
   final Set<String> favoriteSongIds;
+  final Set<String> requestingSongIds;
   final ValueChanged<Song> onFavoriteToggle;
+  final ValueChanged<Song> onRequestSong;
   final Future<void> Function() onRefresh;
   final VoidCallback onLoadMore;
 
@@ -409,7 +554,9 @@ class _SongResults extends StatelessWidget {
     required this.hasMore,
     required this.hasActiveFilters,
     required this.favoriteSongIds,
+    required this.requestingSongIds,
     required this.onFavoriteToggle,
+    required this.onRequestSong,
     required this.onRefresh,
     required this.onLoadMore,
   });
@@ -444,7 +591,9 @@ class _SongResults extends StatelessWidget {
           return _SongCard(
             song: song,
             isFavorite: favoriteSongIds.contains(song.id),
+            isRequesting: requestingSongIds.contains(song.id),
             onFavoriteToggle: () => onFavoriteToggle(song),
+            onRequestSong: () => onRequestSong(song),
           );
         },
       ),
@@ -455,12 +604,16 @@ class _SongResults extends StatelessWidget {
 class _SongCard extends StatelessWidget {
   final Song song;
   final bool isFavorite;
+  final bool isRequesting;
   final VoidCallback onFavoriteToggle;
+  final VoidCallback onRequestSong;
 
   const _SongCard({
     required this.song,
     required this.isFavorite,
+    required this.isRequesting,
     required this.onFavoriteToggle,
+    required this.onRequestSong,
   });
 
   @override
@@ -545,11 +698,32 @@ class _SongCard extends StatelessWidget {
                 ],
               ),
             ),
-            IconButton(
-              tooltip: isFavorite ? 'Remove favorite' : 'Favorite song',
-              onPressed: onFavoriteToggle,
-              icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_border),
-              color: isFavorite ? theme.colorScheme.primary : null,
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: isFavorite ? 'Remove favorite' : 'Favorite song',
+                  onPressed: onFavoriteToggle,
+                  icon: Icon(
+                    isFavorite ? Icons.favorite : Icons.favorite_border,
+                  ),
+                  color: isFavorite ? theme.colorScheme.primary : null,
+                ),
+                const SizedBox(height: 8),
+                FilledButton.icon(
+                  onPressed: song.isAvailable && !isRequesting
+                      ? onRequestSong
+                      : null,
+                  icon: isRequesting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.playlist_add),
+                  label: Text(isRequesting ? 'Requesting' : 'Request'),
+                ),
+              ],
             ),
           ],
         ),

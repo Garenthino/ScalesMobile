@@ -23,6 +23,10 @@ class ApiEndpoints {
   static String songSearch(String venueId) => '/venues/$venueId/songs/search';
   static String songDetail(String venueId, String songId) =>
       '/venues/$venueId/songs/$songId';
+  static String queueJoin(String venueId) => '/venues/$venueId/queue/join';
+  static String queueStatus(String venueId) => '/venues/$venueId/queue/status';
+  static String queueLeave(String venueId) => '/venues/$venueId/queue/leave';
+  static String queueVenue(String venueId) => '/venues/$venueId/queue/venue';
   static const String followSinger = '/social/follow';
   static const String share = '/social/share';
 }
