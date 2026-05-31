@@ -11,6 +11,7 @@ class RoutePaths {
   static const String checkIn = '/checkin';
   static const String leaderboard = '/leaderboard';
   static const String venueDetail = '/venue/:id';
+  static const String paymentHistory = '/singer/payments';
 }
 
 /// API endpoint constants.
@@ -37,6 +38,18 @@ class ApiEndpoints {
   static String favorites(String venueId) => '/venues/$venueId/singers/favorites';
   static String removeFavorite(String venueId, String songId) =>
       '/venues/$venueId/singers/favorites/$songId';
+  static String tip(String venueId) => '/venues/$venueId/payments/tip';
+  static String priorityBump(String venueId) => '/venues/$venueId/payments/priority-bump';
+  static String paymentHistory(String venueId) => '/venues/$venueId/payments/history';
+}
+
+/// Payment preset amounts in cents.
+class PaymentPresets {
+  static const int tip1 = 100;
+  static const int tip2 = 200;
+  static const int tip3 = 500;
+  static const int tip4 = 1000;
+  static const int priorityBump = 499;
 }
 
 /// HTTP status helpers.

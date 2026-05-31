@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scales_mobile/domain/entities/queue_request.dart';
 import 'package:scales_mobile/presentation/providers/queue_provider.dart';
+import 'package:scales_mobile/presentation/screens/payments/priority_bump_sheet.dart';
 
 class SingerQueueScreen extends ConsumerStatefulWidget {
   const SingerQueueScreen({super.key});
@@ -88,7 +89,10 @@ class _ActiveQueueTab extends ConsumerWidget {
           return ListView.separated(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(16),
-            itemBuilder: (context, index) => _ActiveItem(item: items[index]),
+            itemBuilder: (context, index) => _ActiveItem(
+              item: items[index],
+              venueId: venueId,
+            ),
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemCount: items.length,
           );
@@ -103,12 +107,13 @@ class _ActiveQueueTab extends ConsumerWidget {
   }
 }
 
-class _ActiveItem extends StatelessWidget {
+class _ActiveItem extends ConsumerWidget {
   final QueueStatusItem item;
-  const _ActiveItem({required this.item});
+  final String venueId;
+  const _ActiveItem({required this.item, required this.venueId});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Card(
       child: ListTile(
         leading: CircleAvatar(child: Text('#${item.position}')),
@@ -116,9 +121,26 @@ class _ActiveItem extends StatelessWidget {
         subtitle: Text(
           '${item.songArtist} • ${_statusLabel(item.status)}',
         ),
-        trailing: item.etaSeconds == null
-            ? null
-            : Text(_formatEta(item.etaSeconds!)),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (item.etaSeconds != null)
+              Text(_formatEta(item.etaSeconds!)),
+            const SizedBox(width: 4),
+            IconButton(
+              icon: const Icon(Icons.fast_forward, size: 20),
+              tooltip: 'Priority Bump',
+              onPressed: () {
+                showPriorityBumpSheet(
+                  context: context,
+                  venueId: venueId,
+                  requestId: item.requestId,
+                  songTitle: item.songTitle,
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

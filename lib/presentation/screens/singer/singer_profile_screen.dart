@@ -8,6 +8,9 @@ import 'package:scales_mobile/presentation/providers/auth_provider.dart';
 import 'package:scales_mobile/presentation/providers/profile_provider.dart';
 import 'package:scales_mobile/presentation/providers/social_provider.dart';
 import 'package:scales_mobile/presentation/screens/singer/achievements_screen.dart';
+import 'package:scales_mobile/presentation/screens/payments/tip_bottom_sheet.dart';
+import 'package:scales_mobile/presentation/screens/payments/payment_history_screen.dart';
+import 'package:scales_mobile/services/venue_storage.dart';
 
 class SingerProfileScreen extends ConsumerStatefulWidget {
   const SingerProfileScreen({super.key});
@@ -121,7 +124,11 @@ class _ProfileBody extends StatelessWidget {
                   const SizedBox(height: 24),
                   _SocialActionsRow(profile: profile),
                   const SizedBox(height: 24),
+                  _TipButton(profile: profile),
+                  const SizedBox(height: 24),
                   _AchievementsButton(),
+                  const SizedBox(height: 24),
+                  _PaymentsButton(),
                   const SizedBox(height: 24),
                   _CheckInQR(userId: userId),
                   const SizedBox(height: 24),
@@ -472,6 +479,49 @@ class _AchievementsButton extends StatelessWidget {
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => const AchievementsScreen(),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TipButton extends ConsumerWidget {
+  final SingerProfile profile;
+  const _TipButton({required this.profile});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ElevatedButton.icon(
+      icon: const Icon(Icons.volunteer_activism),
+      label: const Text('Send Tip'),
+      onPressed: () async {
+        final storage = await VenueStorage.create();
+        final venueId = storage.getActiveVenueId() ?? 'default_venue';
+        if (!context.mounted) return;
+        await showTipSheet(
+          context: context,
+          venueId: venueId,
+          recipientId: profile.id,
+          recipientName: profile.name,
+        );
+      },
+    );
+  }
+}
+
+class _PaymentsButton extends StatelessWidget {
+  const _PaymentsButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton.icon(
+      icon: const Icon(Icons.payment),
+      label: const Text('Payment History'),
+      onPressed: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const PaymentHistoryScreen(),
           ),
         );
       },
