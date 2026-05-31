@@ -4,6 +4,7 @@ class RoutePaths {
   static const String onboarding = '/onboarding';
   static const String auth = '/auth';
   static const String home = '/home';
+  static const String songBrowser = '/songs';
   static const String singerQueue = '/singer/queue';
   static const String singerProfile = '/singer/profile';
   static const String singerProfileEdit = '/singer/profile/edit';

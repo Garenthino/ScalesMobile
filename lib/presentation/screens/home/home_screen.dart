@@ -95,6 +95,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ),
                 ListTile(
+                  leading: const Icon(Icons.library_music),
+                  title: const Text('Browse Songs'),
+                  subtitle: const Text('Search the active venue catalog'),
+                  onTap: () => context.push(RoutePaths.songBrowser),
+                ),
+                ListTile(
                   leading: const Icon(Icons.queue_music),
                   title: const Text('My Queue'),
                   subtitle: const Text('Manage your song requests'),
@@ -121,8 +127,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ListTile(
                   leading: const Icon(Icons.location_on),
                   title: const Text('Venues'),
-                  subtitle: const Text('Explore nearby venues'),
-                  onTap: () => context.push('/venue/demo_venue_id'),
+                  subtitle: const Text('View your active venue details'),
+                  enabled: _activeVenue != null,
+                  onTap: _activeVenue == null
+                      ? null
+                      : () => context.push('/venue/${_activeVenue!.id}'),
                 ),
               ],
             ),

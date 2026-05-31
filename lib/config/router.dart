@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../presentation/screens/home/home_screen.dart';
+import '../presentation/screens/songs/song_browser_screen.dart';
 import '../presentation/screens/auth/auth_screen.dart';
 import '../presentation/screens/auth/register_screen.dart';
 import '../presentation/screens/singer/singer_queue_screen.dart';
@@ -89,6 +90,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const HomeScreen(),
       ),
       GoRoute(
+        path: RoutePaths.songBrowser,
+        builder: (context, state) => const SongBrowserScreen(),
+      ),
+      GoRoute(
         path: RoutePaths.singerQueue,
         builder: (context, state) => const SingerQueueScreen(),
       ),
@@ -138,7 +143,8 @@ class SplashScreen extends ConsumerStatefulWidget {
   ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends ConsumerState<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _fade;
 
@@ -188,7 +194,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.music_note, size: 64, color: Theme.of(context).colorScheme.primary),
+              Icon(
+                Icons.music_note,
+                size: 64,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(height: 16),
               Text(
                 'Scales',

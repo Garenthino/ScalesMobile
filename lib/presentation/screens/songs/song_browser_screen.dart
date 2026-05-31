@@ -1,0 +1,663 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:scales_mobile/domain/entities/song.dart';
+import 'package:scales_mobile/presentation/providers/song_search_provider.dart';
+import 'package:scales_mobile/services/venue_storage.dart';
+
+class SongBrowserScreen extends ConsumerStatefulWidget {
+  const SongBrowserScreen({super.key});
+
+  @override
+  ConsumerState<SongBrowserScreen> createState() => _SongBrowserScreenState();
+}
+
+class _SongBrowserScreenState extends ConsumerState<SongBrowserScreen> {
+  final _searchController = TextEditingController();
+  final Set<String> _favoriteSongIds = <String>{};
+
+  String? _selectedGenre;
+  int? _selectedDecade;
+  CachedVenue? _activeVenue;
+  bool _isLoadingVenue = true;
+  Timer? _searchDebounce;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadVenue());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(songSearchProvider.notifier).loadInitial();
+    });
+  }
+
+  Future<void> _loadVenue() async {
+    final storage = await VenueStorage.create();
+    if (!mounted) return;
+    setState(() {
+      _activeVenue = storage.getActiveVenue();
+      _isLoadingVenue = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      _clearLocalFilters();
+      ref.read(songSearchProvider.notifier).search(value);
+    });
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    _clearLocalFilters();
+    ref.read(songSearchProvider.notifier).search('');
+  }
+
+  void _clearLocalFilters() {
+    if (_selectedGenre == null && _selectedDecade == null) return;
+    setState(() {
+      _selectedGenre = null;
+      _selectedDecade = null;
+    });
+  }
+
+  void _toggleFavorite(Song song) {
+    setState(() {
+      if (_favoriteSongIds.contains(song.id)) {
+        _favoriteSongIds.remove(song.id);
+      } else {
+        _favoriteSongIds.add(song.id);
+      }
+    });
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Favorite saved locally for this session. Persistence is deferred.',
+        ),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  List<Song> _applyFilters(List<Song> songs) {
+    return songs
+        .where((song) {
+          final genreMatches =
+              _selectedGenre == null || song.genre == _selectedGenre;
+          final decadeMatches =
+              _selectedDecade == null ||
+              _decadeFor(song.year) == _selectedDecade;
+          return genreMatches && decadeMatches;
+        })
+        .toList(growable: false);
+  }
+
+  List<String> _availableGenres(List<Song> songs) {
+    final genres =
+        songs
+            .map((song) => song.genre?.trim())
+            .whereType<String>()
+            .where((genre) => genre.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+    return genres;
+  }
+
+  List<int> _availableDecades(List<Song> songs) {
+    final decades =
+        songs
+            .map((song) => _decadeFor(song.year))
+            .whereType<int>()
+            .toSet()
+            .toList()
+          ..sort((a, b) => b.compareTo(a));
+    return decades;
+  }
+
+  int? _decadeFor(int? year) {
+    if (year == null || year <= 0) return null;
+    return (year ~/ 10) * 10;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final songState = ref.watch(songSearchProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Browse Songs'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh songs',
+            onPressed: () {
+              _clearLocalFilters();
+              ref
+                  .read(songSearchProvider.notifier)
+                  .search(_searchController.text);
+            },
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          _Header(venue: _activeVenue, isLoadingVenue: _isLoadingVenue),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                labelText: 'Search songs',
+                hintText: 'Title, artist, album, or genre',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Clear search',
+                        onPressed: _clearSearch,
+                        icon: const Icon(Icons.clear),
+                      ),
+              ),
+              textInputAction: TextInputAction.search,
+              onChanged: (value) {
+                setState(() {});
+                _onSearchChanged(value);
+              },
+              onSubmitted: (value) {
+                _searchDebounce?.cancel();
+                _clearLocalFilters();
+                ref.read(songSearchProvider.notifier).search(value);
+              },
+            ),
+          ),
+          Expanded(
+            child: songState.when(
+              data: (state) {
+                final filteredSongs = _applyFilters(state.songs);
+                return Column(
+                  children: [
+                    _FilterBar(
+                      genres: _availableGenres(state.songs),
+                      decades: _availableDecades(state.songs),
+                      selectedGenre: _selectedGenre,
+                      selectedDecade: _selectedDecade,
+                      onGenreSelected: (genre) {
+                        setState(() {
+                          _selectedGenre = _selectedGenre == genre
+                              ? null
+                              : genre;
+                        });
+                      },
+                      onDecadeSelected: (decade) {
+                        setState(() {
+                          _selectedDecade = _selectedDecade == decade
+                              ? null
+                              : decade;
+                        });
+                      },
+                      onClear: _clearLocalFilters,
+                    ),
+                    Expanded(
+                      child: _SongResults(
+                        songs: filteredSongs,
+                        totalSongCount: state.songs.length,
+                        query: state.query,
+                        hasMore: state.hasMore,
+                        hasActiveFilters:
+                            _selectedGenre != null || _selectedDecade != null,
+                        favoriteSongIds: _favoriteSongIds,
+                        onFavoriteToggle: _toggleFavorite,
+                        onRefresh: () => ref
+                            .read(songSearchProvider.notifier)
+                            .search(_searchController.text),
+                        onLoadMore: () => ref
+                            .read(songSearchProvider.notifier)
+                            .loadNextPage(),
+                      ),
+                    ),
+                  ],
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stackTrace) => _ErrorState(
+                error: error,
+                onRetry: () => ref
+                    .read(songSearchProvider.notifier)
+                    .search(_searchController.text),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  final CachedVenue? venue;
+  final bool isLoadingVenue;
+
+  const _Header({required this.venue, required this.isLoadingVenue});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final subtitle = switch ((isLoadingVenue, venue)) {
+      (true, _) => 'Loading active venue…',
+      (false, final CachedVenue activeVenue) => activeVenue.name,
+      _ => 'Using your active venue catalog',
+    };
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: theme.colorScheme.primary,
+            child: Icon(
+              Icons.library_music,
+              color: theme.colorScheme.onPrimary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Song Catalog',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilterBar extends StatelessWidget {
+  final List<String> genres;
+  final List<int> decades;
+  final String? selectedGenre;
+  final int? selectedDecade;
+  final ValueChanged<String> onGenreSelected;
+  final ValueChanged<int> onDecadeSelected;
+  final VoidCallback onClear;
+
+  const _FilterBar({
+    required this.genres,
+    required this.decades,
+    required this.selectedGenre,
+    required this.selectedDecade,
+    required this.onGenreSelected,
+    required this.onDecadeSelected,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasActiveFilter = selectedGenre != null || selectedDecade != null;
+    final visibleGenres = genres.take(8).toList(growable: false);
+    final visibleDecades = decades.take(6).toList(growable: false);
+
+    return SizedBox(
+      height: 56,
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        scrollDirection: Axis.horizontal,
+        children: [
+          if (hasActiveFilter) ...[
+            ActionChip(
+              avatar: const Icon(Icons.clear, size: 18),
+              label: const Text('Clear'),
+              onPressed: onClear,
+            ),
+            const SizedBox(width: 8),
+          ],
+          if (visibleGenres.isEmpty)
+            const InputChip(
+              avatar: Icon(Icons.category, size: 18),
+              label: Text('Genre unavailable'),
+              onPressed: null,
+            )
+          else
+            for (final genre in visibleGenres) ...[
+              FilterChip(
+                avatar: const Icon(Icons.category, size: 18),
+                label: Text(genre),
+                selected: selectedGenre == genre,
+                onSelected: (_) => onGenreSelected(genre),
+              ),
+              const SizedBox(width: 8),
+            ],
+          if (visibleDecades.isEmpty)
+            const InputChip(
+              avatar: Icon(Icons.calendar_month, size: 18),
+              label: Text('Decade unavailable'),
+              onPressed: null,
+            )
+          else
+            for (final decade in visibleDecades) ...[
+              FilterChip(
+                avatar: const Icon(Icons.calendar_month, size: 18),
+                label: Text('${decade}s'),
+                selected: selectedDecade == decade,
+                onSelected: (_) => onDecadeSelected(decade),
+              ),
+              const SizedBox(width: 8),
+            ],
+          const Tooltip(
+            message:
+                'TODO: enable difficulty filtering when the song API exposes a difficulty field.',
+            child: InputChip(
+              avatar: Icon(Icons.speed, size: 18),
+              label: Text('Difficulty TODO'),
+              onPressed: null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SongResults extends StatelessWidget {
+  final List<Song> songs;
+  final int totalSongCount;
+  final String query;
+  final bool hasMore;
+  final bool hasActiveFilters;
+  final Set<String> favoriteSongIds;
+  final ValueChanged<Song> onFavoriteToggle;
+  final Future<void> Function() onRefresh;
+  final VoidCallback onLoadMore;
+
+  const _SongResults({
+    required this.songs,
+    required this.totalSongCount,
+    required this.query,
+    required this.hasMore,
+    required this.hasActiveFilters,
+    required this.favoriteSongIds,
+    required this.onFavoriteToggle,
+    required this.onRefresh,
+    required this.onLoadMore,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (totalSongCount == 0) {
+      return _EmptyState(query: query);
+    }
+
+    if (songs.isEmpty && hasActiveFilters) {
+      return const _NoFilterMatchesState();
+    }
+
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        itemCount: songs.length + (hasMore && !hasActiveFilters ? 1 : 0),
+        separatorBuilder: (_, _) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          if (index >= songs.length) {
+            return OutlinedButton.icon(
+              onPressed: onLoadMore,
+              icon: const Icon(Icons.expand_more),
+              label: const Text('Load more songs'),
+            );
+          }
+
+          final song = songs[index];
+          return _SongCard(
+            song: song,
+            isFavorite: favoriteSongIds.contains(song.id),
+            onFavoriteToggle: () => onFavoriteToggle(song),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SongCard extends StatelessWidget {
+  final Song song;
+  final bool isFavorite;
+  final VoidCallback onFavoriteToggle;
+
+  const _SongCard({
+    required this.song,
+    required this.isFavorite,
+    required this.onFavoriteToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final duration = _formatDuration(song.durationMs);
+    final metadata = [
+      if (song.genre != null && song.genre!.trim().isNotEmpty)
+        song.genre!.trim(),
+      if (song.year != null) song.year.toString(),
+      ?duration,
+      if (!song.isAvailable) 'Unavailable',
+    ];
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.secondaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.music_note,
+                color: theme.colorScheme.onSecondaryContainer,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    song.displayTitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    song.displayArtist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  if (song.album != null && song.album!.trim().isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      song.album!.trim(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                  if (metadata.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: metadata
+                          .map(
+                            (label) => Chip(
+                              label: Text(label),
+                              visualDensity: VisualDensity.compact,
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          )
+                          .toList(growable: false),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: isFavorite ? 'Remove favorite' : 'Favorite song',
+              onPressed: onFavoriteToggle,
+              icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_border),
+              color: isFavorite ? theme.colorScheme.primary : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String? _formatDuration(int? durationMs) {
+    if (durationMs == null || durationMs <= 0) return null;
+    final duration = Duration(milliseconds: durationMs);
+    final minutes = duration.inMinutes;
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  final String query;
+
+  const _EmptyState({required this.query});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasQuery = query.trim().isNotEmpty;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              hasQuery ? Icons.search_off : Icons.library_music_outlined,
+              size: 64,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              hasQuery ? 'No songs found' : 'No songs available yet',
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              hasQuery
+                  ? 'Try a different title, artist, or genre.'
+                  : 'The active venue has not published a song catalog yet.',
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NoFilterMatchesState extends StatelessWidget {
+  const _NoFilterMatchesState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(32),
+        child: Text(
+          'No songs match the selected filters. Clear filters to see all results.',
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  final Object error;
+  final VoidCallback onRetry;
+
+  const _ErrorState({required this.error, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Could not load songs',
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(error.toString(), textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try again'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
