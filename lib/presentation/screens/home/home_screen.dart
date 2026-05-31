@@ -122,7 +122,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   leading: const Icon(Icons.emoji_events),
                   title: const Text('Leaderboard'),
                   subtitle: const Text('Top singers at your venue'),
-                  onTap: () => context.push(RoutePaths.leaderboard),
+                  onTap: () {
+                    final vid = _activeVenue?.id ?? 'default_venue';
+                    context.push(RoutePaths.leaderboard, extra: vid);
+                  },
                 ),
                 ListTile(
                   leading: const Icon(Icons.location_on),

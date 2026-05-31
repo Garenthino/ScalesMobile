@@ -13,10 +13,11 @@ final leaderboardRepoProvider = Provider<LeaderboardRepository>(
 );
 
 /// Provider for fetching leaderboard data for a venue.
+/// Optionally accepts a period ('week', 'month', 'alltime').
 final leaderboardProvider = FutureProvider.autoDispose
-    .family<List<LeaderboardEntry>, String>((ref, venueId) async {
+    .family<List<LeaderboardEntry>, ({String venueId, String period})>((ref, args) async {
   final repo = ref.watch(leaderboardRepoProvider);
-  return repo.fetchLeaderboard(venueId);
+  return repo.fetchLeaderboard(args.venueId, period: args.period == 'alltime' ? null : args.period);
 });
 
 /// Provider for follow status lookup: bool for a given followeeId.

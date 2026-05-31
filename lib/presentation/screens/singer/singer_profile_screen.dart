@@ -7,6 +7,7 @@ import 'package:scales_mobile/domain/entities/singer_profile.dart';
 import 'package:scales_mobile/presentation/providers/auth_provider.dart';
 import 'package:scales_mobile/presentation/providers/profile_provider.dart';
 import 'package:scales_mobile/presentation/providers/social_provider.dart';
+import 'package:scales_mobile/presentation/screens/singer/achievements_screen.dart';
 
 class SingerProfileScreen extends ConsumerStatefulWidget {
   const SingerProfileScreen({super.key});
@@ -119,6 +120,8 @@ class _ProfileBody extends StatelessWidget {
                   _TopSongsSection(stats: stats),
                   const SizedBox(height: 24),
                   _SocialActionsRow(profile: profile),
+                  const SizedBox(height: 24),
+                  _AchievementsButton(),
                   const SizedBox(height: 24),
                   _CheckInQR(userId: userId),
                   const SizedBox(height: 24),
@@ -453,6 +456,25 @@ class _ShareButtonState extends ConsumerState<_ShareButton> {
           : const Icon(Icons.share),
       label: const Text('Share Profile'),
       onPressed: _loading ? null : _share,
+    );
+  }
+}
+
+class _AchievementsButton extends StatelessWidget {
+  const _AchievementsButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton.icon(
+      icon: const Icon(Icons.emoji_events),
+      label: const Text('Achievements'),
+      onPressed: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const AchievementsScreen(),
+          ),
+        );
+      },
     );
   }
 }

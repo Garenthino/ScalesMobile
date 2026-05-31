@@ -43,7 +43,7 @@ abstract class CheckInRepository {
 
 /// Repository for leaderboard.
 abstract class LeaderboardRepository {
-  Future<List<LeaderboardEntry>> fetchLeaderboard(String venueId, {int limit = 20});
+  Future<List<LeaderboardEntry>> fetchLeaderboard(String venueId, {int limit = 20, String? period});
 }
 
 /// Repository for social features.

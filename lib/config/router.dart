@@ -112,8 +112,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RoutePaths.leaderboard,
         builder: (context, state) {
-          final venueId = state.extra as String? ?? 'default_venue';
-          return LeaderboardScreen(venueId: venueId);
+          final venueId = state.extra as String?;
+          return LeaderboardScreen(venueId: venueId ?? 'default_venue');
         },
       ),
       GoRoute(

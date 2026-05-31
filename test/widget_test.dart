@@ -281,6 +281,7 @@ class _FakeLeaderboardRepository implements LeaderboardRepository {
   Future<List<LeaderboardEntry>> fetchLeaderboard(
     String venueId, {
     int limit = 20,
+    String? period,
   }) async {
     return const [
       LeaderboardEntry(

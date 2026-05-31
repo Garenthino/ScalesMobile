@@ -15,11 +15,18 @@ class LeaderboardRepositoryImpl implements LeaderboardRepository {
   ));
 
   @override
-  Future<List<LeaderboardEntry>> fetchLeaderboard(String venueId, {int limit = 20}) async {
+  Future<List<LeaderboardEntry>> fetchLeaderboard(String venueId, {
+    int limit = 20,
+    String? period,
+  }) async {
     try {
+      final query = <String, dynamic>{'limit': limit};
+      if (period != null && period.isNotEmpty) {
+        query['period'] = period;
+      }
       final response = await _dio.get(
         '/venues/$venueId/leaderboard',
-        queryParameters: {'limit': limit},
+        queryParameters: query,
       );
       if (response.statusCode == 200) {
         final List<dynamic> rawList;
