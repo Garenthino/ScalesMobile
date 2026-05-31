@@ -4,7 +4,6 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scales_mobile/data/repositories/achievement_repository.dart';
-import 'package:scales_mobile/domain/entities/achievement.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -87,6 +86,37 @@ void main() {
     expect(achievements.single.key, 'regular');
     expect(achievements.single.progress, 8);
   });
+
+  test('AchievementRepositoryImpl offline fallback returns cached data', () async {
+    // Seed SharedPreferences with cached achievements
+    SharedPreferences.setMockInitialValues({
+      'scales_active_venue_id': 'venue_1',
+      'scales_auth_venue_1': 'test-access-token',
+      'scales_achievements_venue_1': jsonEncode([
+        {
+          'achievement_key': 'cached_achievement',
+          'name': 'Cached',
+          'description': 'From cache',
+          'icon': 'star',
+          'progress': 5,
+          'target': 10,
+          'unlocked_at': null,
+          'unlocked': false,
+        },
+      ]),
+    });
+
+    // Provide a Dio that throws connectionError (no route registered)
+    final dio = Dio(BaseOptions(baseUrl: 'https://dancingdragonservices.com/api/v1'));
+    dio.httpClientAdapter = _FakeHttpClientAdapter({});
+    final repository = AchievementRepositoryImpl(dio: dio);
+
+    final achievements = await repository.fetchMyAchievements();
+
+    expect(achievements, hasLength(1));
+    expect(achievements.single.key, 'cached_achievement');
+    expect(achievements.single.progress, 5);
+  });
 }
 
 typedef _RouteHandler = ResponseBody Function(RequestOptions options);
@@ -116,7 +146,12 @@ class _FakeHttpClientAdapter implements HttpClientAdapter {
   ) async {
     final handler = routes[options.path];
     if (handler == null) {
-      return ResponseBody.fromString('Not found: ${options.path}', 404);
+      // Simulate a connection error to trigger offline fallback
+      throw DioException(
+        type: DioExceptionType.connectionError,
+        requestOptions: options,
+        error: 'No route registered',
+      );
     }
     return handler(options);
   }

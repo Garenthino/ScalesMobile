@@ -48,6 +48,11 @@ class AchievementRepositoryImpl implements AchievementRepository {
         } else {
           rawList = [];
         }
+        // cache raw JSON for offline fallback
+        await storage.saveAchievements(
+          venueId,
+          rawList.map((e) => e as Map<String, dynamic>).toList(),
+        );
         return rawList.map((e) => _mapAchievement(e as Map<String, dynamic>)).toList();
       }
       return [];
@@ -55,7 +60,26 @@ class AchievementRepositoryImpl implements AchievementRepository {
       if (e.response?.statusCode == 401) {
         throw Exception('Session expired. Please sign in again.');
       }
+      // offline fallback
+      if (_isOfflineError(e)) {
+        final cached = storage.getAchievements(venueId);
+        if (cached != null) {
+          return cached.map(_mapAchievement).toList();
+        }
+      }
       rethrow;
+    }
+  }
+
+  bool _isOfflineError(DioException e) {
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.connectionError:
+      case DioExceptionType.cancel:
+      case DioExceptionType.unknown:
+        return true;
+      default:
+        return false;
     }
   }
 

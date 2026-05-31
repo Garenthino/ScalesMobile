@@ -174,6 +174,23 @@ class VenueStorage {
   // Last check-in cache
   // ------------------------------------------------------------------
 
+  static const _achievementsPrefix = 'scales_achievements_';
+
+  Future<void> saveAchievements(String venueId, List<Map<String, dynamic>> data) async {
+    await _prefs.setString('$_achievementsPrefix$venueId', jsonEncode(data));
+  }
+
+  List<Map<String, dynamic>>? getAchievements(String venueId) {
+    final raw = _prefs.getString('$_achievementsPrefix$venueId');
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final list = jsonDecode(raw) as List<dynamic>;
+      return list.map((e) => e as Map<String, dynamic>).toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
   static const _lastCheckInKey = 'scales_last_checkin';
 
   Future<void> setLastCheckIn({required String venueId, required String venueName}) async {
