@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scales_mobile/domain/entities/singer_profile.dart';
+import 'package:scales_mobile/presentation/providers/auth_provider.dart';
 import 'package:scales_mobile/presentation/providers/social_provider.dart';
 
 class LeaderboardScreen extends ConsumerWidget {
@@ -35,7 +36,7 @@ class LeaderboardScreen extends ConsumerWidget {
         ),
       ),
       body: leaderboardAsync.when(
-        data: (entries) => _LeaderboardView(entries: entries),
+        data: (entries) => _LeaderboardView(entries: entries, venueId: venueId),
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => Center(child: Text('Error: $err')),
       ),
@@ -45,7 +46,8 @@ class LeaderboardScreen extends ConsumerWidget {
 
 class _LeaderboardView extends StatelessWidget {
   final List<LeaderboardEntry> entries;
-  const _LeaderboardView({required this.entries});
+  final String venueId;
+  const _LeaderboardView({required this.entries, required this.venueId});
 
   @override
   Widget build(BuildContext context) {
@@ -102,24 +104,71 @@ class _RankBadge extends StatelessWidget {
   }
 }
 
-class _FollowButton extends StatefulWidget {
+class _FollowButton extends ConsumerStatefulWidget {
   final String singerId;
   final String name;
   const _FollowButton({required this.singerId, required this.name});
 
   @override
-  State<_FollowButton> createState() => _FollowButtonState();
+  ConsumerState<_FollowButton> createState() => _FollowButtonState();
 }
 
-class _FollowButtonState extends State<_FollowButton> {
-  bool _following = false;
+class _FollowButtonState extends ConsumerState<_FollowButton> {
+  bool _loading = false;
 
   @override
   Widget build(BuildContext context) {
+    final currentUserId = ref.watch(currentUserIdProvider);
+    if (currentUserId == null || currentUserId == widget.singerId) {
+      return const SizedBox.shrink();
+    }
+
+    final followAsync = ref.watch(
+      followStatusProvider(
+        (followerId: currentUserId, followeeId: widget.singerId),
+      ),
+    );
+
+    final isFollowing = switch (followAsync) {
+      AsyncData(:final value) => value,
+      _ => false,
+    };
+
+    if (_loading) {
+      return const SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+
     return TextButton.icon(
-      icon: Icon(_following ? Icons.person_remove : Icons.person_add),
-      label: Text(_following ? 'Unfollow' : 'Follow'),
-      onPressed: () => setState(() => _following = !_following),
+      icon: Icon(isFollowing ? Icons.person_remove : Icons.person_add),
+      label: Text(isFollowing ? 'Unfollow' : 'Follow'),
+      onPressed: () async {
+        setState(() => _loading = true);
+        final mutation = ref.read(followMutationProvider);
+        try {
+          if (isFollowing) {
+            await mutation.unfollow(currentUserId, widget.singerId);
+            _showSnack('Unfollowed ${widget.name}');
+          } else {
+            await mutation.follow(currentUserId, widget.singerId);
+            _showSnack('Followed ${widget.name}');
+          }
+        } catch (e) {
+          _showSnack('Error: $e');
+        } finally {
+          setState(() => _loading = false);
+        }
+      },
+    );
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
     );
   }
 }

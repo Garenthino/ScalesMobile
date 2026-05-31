@@ -6,6 +6,7 @@ import 'package:scales_mobile/core/constants/app_constants.dart';
 import 'package:scales_mobile/domain/entities/singer_profile.dart';
 import 'package:scales_mobile/presentation/providers/auth_provider.dart';
 import 'package:scales_mobile/presentation/providers/profile_provider.dart';
+import 'package:scales_mobile/presentation/providers/social_provider.dart';
 
 class SingerProfileScreen extends ConsumerWidget {
   const SingerProfileScreen({super.key});
@@ -84,6 +85,9 @@ class _ProfileBody extends StatelessWidget {
           const SizedBox(height: 24),
           // Loyalty tier
           _TierCard(tier: profile.tier),
+          const SizedBox(height: 24),
+          // Social actions (share with self)
+          _SocialActionsRow(profile: profile),
           const SizedBox(height: 24),
           // QR code for quick check-in
           _CheckInQR(userId: userId),
@@ -176,6 +180,143 @@ class _TierCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SocialActionsRow extends StatelessWidget {
+  final SingerProfile profile;
+  const _SocialActionsRow({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _ShareButton(profile: profile),
+      ],
+    );
+  }
+}
+
+class _ShareButton extends ConsumerStatefulWidget {
+  final SingerProfile profile;
+  const _ShareButton({required this.profile});
+
+  @override
+  ConsumerState<_ShareButton> createState() => _ShareButtonState();
+}
+
+class _ShareButtonState extends ConsumerState<_ShareButton> {
+  bool _loading = false;
+
+  Future<void> _share() async {
+    setState(() => _loading = true);
+    try {
+      await ref.read(socialRepoProvider).shareToSocial(
+        SocialShare(
+          singerId: widget.profile.id,
+          platform: 'generic',
+        ),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile shared!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Share failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton.icon(
+      icon: _loading
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.share),
+      label: const Text('Share Profile'),
+      onPressed: _loading ? null : _share,
+    );
+  }
+}
+
+class _FollowStatusChip extends ConsumerStatefulWidget {
+  final SingerProfile profile;
+  const _FollowStatusChip({required this.profile});
+
+  @override
+  ConsumerState<_FollowStatusChip> createState() => _FollowStatusChipState();
+}
+
+class _FollowStatusChipState extends ConsumerState<_FollowStatusChip> {
+  bool _loading = false;
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    final ctx = context; // safe: mounted checked and this is State.context
+    ScaffoldMessenger.of(ctx).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentUserId = ref.watch(currentUserIdProvider);
+    if (currentUserId == null) return const SizedBox.shrink();
+
+    final followAsync = ref.watch(
+      followStatusProvider(
+        (followerId: currentUserId, followeeId: widget.profile.id),
+      ),
+    );
+
+    final isFollowing = switch (followAsync) {
+      AsyncData(:final value) => value,
+      _ => false,
+    };
+
+    if (_loading) {
+      return const SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+
+    return ActionChip(
+      avatar: Icon(isFollowing ? Icons.person_remove : Icons.person_add),
+      label: Text(isFollowing ? 'Unfollow' : 'Follow'),
+      onPressed: () async {
+        setState(() => _loading = true);
+        final mutation = ref.read(followMutationProvider);
+        try {
+          if (isFollowing) {
+            await mutation.unfollow(currentUserId, widget.profile.id);
+            _showSnack('Unfollowed ${widget.profile.name}');
+          } else {
+            await mutation.follow(currentUserId, widget.profile.id);
+            _showSnack('Followed ${widget.profile.name}');
+          }
+        } catch (e) {
+          _showSnack('Error: $e');
+        } finally {
+          if (mounted) setState(() => _loading = false);
+        }
+      },
     );
   }
 }

@@ -18,3 +18,45 @@ final leaderboardProvider = FutureProvider.autoDispose
   final repo = ref.watch(leaderboardRepoProvider);
   return repo.fetchLeaderboard(venueId);
 });
+
+/// Provider for follow status lookup: bool for a given followeeId.
+final followStatusProvider = FutureProvider.autoDispose
+    .family<bool, ({String followerId, String followeeId})>((ref, args) async {
+  final repo = ref.watch(socialRepoProvider);
+  return repo.isFollowing(args.followerId, args.followeeId);
+});
+
+/// Mutation provider that exposes follow/unfollow operations and invalidates status.
+final followMutationProvider = Provider<FollowMutation>((ref) {
+  return FollowMutation(
+    repo: ref.read(socialRepoProvider),
+    invalidate: (followerId, followeeId) {
+      ref.invalidate(
+        followStatusProvider(
+          (followerId: followerId, followeeId: followeeId),
+        ),
+      );
+      ref.invalidate(leaderboardProvider);
+    },
+  );
+});
+
+class FollowMutation {
+  final SocialRepository _repo;
+  final void Function(String, String) _invalidate;
+
+  const FollowMutation({
+    required this._repo,
+    required this._invalidate,
+  });
+
+  Future<void> follow(String followerId, String followeeId) async {
+    await _repo.follow(followerId, followeeId);
+    _invalidate(followerId, followeeId);
+  }
+
+  Future<void> unfollow(String followerId, String followeeId) async {
+    await _repo.unfollow(followerId, followeeId);
+    _invalidate(followerId, followeeId);
+  }
+}

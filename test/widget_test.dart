@@ -303,9 +303,10 @@ class _FakeSongRepository implements SongRepository {
     String query, {
     int page = 1,
     int perPage = 20,
-  }) async => _songs
-      .where((song) => song.title.toLowerCase().contains(query.toLowerCase()))
-      .toList(growable: false);
+  }) async =>
+      _songs
+          .where((song) => song.title.toLowerCase().contains(query.toLowerCase()))
+          .toList(growable: false);
 
   @override
   Future<Song> fetchSong(String songId) async =>

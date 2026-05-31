@@ -26,12 +26,20 @@ class SocialRepositoryImpl implements SocialRepository {
     return {};
   }
 
+  Future<String?> _getActiveVenueId() async {
+    final storage = await VenueStorage.create();
+    return storage.getActiveVenueId();
+  }
+
   @override
   Future<void> follow(String followerId, String followeeId) async {
+    final venueId = await _getActiveVenueId();
+    if (venueId == null) {
+      throw Exception('No active venue');
+    }
     try {
       final response = await _dio.post(
-        '/social/follow',
-        data: {'followee_id': followeeId},
+        '/venues/$venueId/singers/follow/$followeeId',
         options: Options(headers: await _authHeaders()),
       );
       if (response.statusCode == 200 || response.statusCode == 201) return;
@@ -46,13 +54,16 @@ class SocialRepositoryImpl implements SocialRepository {
 
   @override
   Future<void> unfollow(String followerId, String followeeId) async {
+    final venueId = await _getActiveVenueId();
+    if (venueId == null) {
+      throw Exception('No active venue');
+    }
     try {
-      final response = await _dio.post(
-        '/social/unfollow',
-        data: {'followee_id': followeeId},
+      final response = await _dio.delete(
+        '/venues/$venueId/singers/follow/$followeeId',
         options: Options(headers: await _authHeaders()),
       );
-      if (response.statusCode == 200 || response.statusCode == 201) return;
+      if (response.statusCode == 200 || response.statusCode == 204) return;
       throw Exception('Unfollow failed: ${response.statusCode}');
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
@@ -64,12 +75,48 @@ class SocialRepositoryImpl implements SocialRepository {
 
   @override
   Future<bool> isFollowing(String followerId, String followeeId) async {
-    // TODO: Need backend endpoint for follow-check. Returning false for MS-01.
-    return false;
+    final venueId = await _getActiveVenueId();
+    if (venueId == null) return false;
+    try {
+      final response = await _dio.get(
+        '/venues/$venueId/singers/follow/status/$followeeId',
+        options: Options(headers: await _authHeaders()),
+      );
+      if (response.statusCode == 200) {
+        final data = response.data as Map<String, dynamic>?;
+        return data?['is_following'] == true;
+      }
+      return false;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        throw Exception('Session expired. Please sign in again.');
+      }
+      return false;
+    }
   }
 
   @override
   Future<void> shareToSocial(SocialShare share) async {
-    // TODO: Social share deferred to Sprint MS-03/04.
+    final venueId = await _getActiveVenueId();
+    if (venueId == null) {
+      throw Exception('No active venue');
+    }
+    try {
+      final response = await _dio.post(
+        '/venues/$venueId/leaderboard/share',
+        data: {
+          'content_type': share.platform,
+          'content_id': share.singerId,
+        },
+        options: Options(headers: await _authHeaders()),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) return;
+      throw Exception('Share failed: ${response.statusCode}');
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        throw Exception('Session expired. Please sign in again.');
+      }
+      rethrow;
+    }
   }
 }

@@ -27,8 +27,11 @@ class ApiEndpoints {
   static String queueStatus(String venueId) => '/venues/$venueId/queue/status';
   static String queueLeave(String venueId) => '/venues/$venueId/queue/leave';
   static String queueVenue(String venueId) => '/venues/$venueId/queue/venue';
-  static const String followSinger = '/social/follow';
-  static const String share = '/social/share';
+  static String follow(String venueId, String followeeId) =>
+      '/venues/$venueId/singers/follow/$followeeId';
+  static String followStatus(String venueId, String followeeId) =>
+      '/venues/$venueId/singers/follow/status/$followeeId';
+  static String share(String venueId) => '/venues/$venueId/leaderboard/share';
   static String favorites(String venueId) => '/venues/$venueId/singers/favorites';
   static String removeFavorite(String venueId, String songId) =>
       '/venues/$venueId/singers/favorites/$songId';

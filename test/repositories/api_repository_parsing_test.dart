@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scales_mobile/data/repositories/leaderboard_repository.dart';
 import 'package:scales_mobile/data/repositories/singer_profile_repository.dart';
+import 'package:scales_mobile/data/repositories/social_repository.dart';
 import 'package:scales_mobile/data/repositories/song_repository.dart';
 import 'package:scales_mobile/domain/entities/singer_profile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -218,6 +219,101 @@ void main() {
       expect(entries.first.points, 1240);
       expect(entries.last.singerId, 'singer_2');
       expect(entries.last.name, 'Bailey Ballad');
+    });
+  });
+
+  group('SocialRepositoryImpl', () {
+    test('follow sends POST to venue-scoped follow endpoint', () async {
+      RequestOptions? seenRequest;
+      final dio = _dioWithRoutes({
+        '/venues/venue_1/singers/follow/singer_2': (options) {
+          seenRequest = options;
+          return _jsonResponse({
+            'id': 'follow_1',
+            'venue_id': 'venue_1',
+            'follower_id': 'singer_1',
+            'followee_id': 'singer_2',
+            'followee_name': 'Bailey Ballad',
+            'created_at': '2026-05-31T00:00:00Z',
+          }, statusCode: 201)(options);
+        },
+      });
+      final repo = SocialRepositoryImpl(dio: dio);
+
+      await repo.follow('singer_1', 'singer_2');
+
+      expect(seenRequest?.method, 'POST');
+      expect(seenRequest?.path, '/venues/venue_1/singers/follow/singer_2');
+    });
+
+    test('unfollow sends DELETE to venue-scoped follow endpoint', () async {
+      RequestOptions? seenRequest;
+      final dio = _dioWithRoutes({
+        '/venues/venue_1/singers/follow/singer_2': (options) {
+          seenRequest = options;
+          return ResponseBody.fromString('', 204);
+        },
+      });
+      final repo = SocialRepositoryImpl(dio: dio);
+
+      await repo.unfollow('singer_1', 'singer_2');
+
+      expect(seenRequest?.method, 'DELETE');
+      expect(seenRequest?.path, '/venues/venue_1/singers/follow/singer_2');
+    });
+
+    test('isFollowing parses true from follow status endpoint', () async {
+      final dio = _dioWithRoutes({
+        '/venues/venue_1/singers/follow/status/singer_2': _jsonResponse({
+          'is_following': true,
+          'follower_count': 14,
+          'following_count': 6,
+          'created_at': '2026-05-31T00:00:00Z',
+        }),
+      });
+      final repo = SocialRepositoryImpl(dio: dio);
+
+      final result = await repo.isFollowing('singer_1', 'singer_2');
+
+      expect(result, isTrue);
+    });
+
+    test('isFollowing returns false on 404 or missing key', () async {
+      final dio = _dioWithRoutes({
+        '/venues/venue_1/singers/follow/status/singer_2': (options) {
+          return ResponseBody.fromString('Not found', 404);
+        },
+      });
+      final repo = SocialRepositoryImpl(dio: dio);
+
+      final result = await repo.isFollowing('singer_1', 'singer_2');
+
+      expect(result, isFalse);
+    });
+
+    test('shareToSocial sends POST to leaderboard share endpoint', () async {
+      RequestOptions? seenRequest;
+      final dio = _dioWithRoutes({
+        '/venues/venue_1/leaderboard/share': (options) {
+          seenRequest = options;
+          return _jsonResponse({
+            'url': 'http://share.scales/abc123',
+            'expires_at': '2026-06-07T00:00:00Z',
+          }, statusCode: 201)(options);
+        },
+      });
+      final repo = SocialRepositoryImpl(dio: dio);
+
+      await repo.shareToSocial(const SocialShare(
+        singerId: 'singer_1',
+        platform: 'generic',
+      ));
+
+      expect(seenRequest?.method, 'POST');
+      expect(seenRequest?.path, '/venues/venue_1/leaderboard/share');
+      final body = seenRequest!.data as Map<String, dynamic>;
+      expect(body['content_type'], 'generic');
+      expect(body['content_id'], 'singer_1');
     });
   });
 }
