@@ -45,7 +45,6 @@ class _TipSheetState extends ConsumerState<_TipSheet> {
   int _selectedCents = 0;
   bool _customMode = false;
   final _customController = TextEditingController();
-  String? _message;
   bool _isProcessing = false;
 
   static const List<int> _presets = [
@@ -110,7 +109,7 @@ class _TipSheetState extends ConsumerState<_TipSheet> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Tip failed: \$e')),
+        const SnackBar(content: Text('Unable to send tip. Please try again.')),
       );
       setState(() => _isProcessing = false);
     }
@@ -202,16 +201,6 @@ class _TipSheetState extends ConsumerState<_TipSheet> {
                 onChanged: (_) => setState(() {}),
               ),
             ],
-            const SizedBox(height: 12),
-            TextField(
-              decoration: const InputDecoration(
-                labelText: 'Message (optional)',
-                hintText: 'Great set tonight!',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 2,
-              onChanged: (v) => _message = v.isEmpty ? null : v,
-            ),
             const SizedBox(height: 20),
             SizedBox(
               height: 48,
