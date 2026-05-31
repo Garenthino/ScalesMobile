@@ -1,3 +1,45 @@
+/// A top-song entry returned by /me/stats.
+class TopSong {
+  final String id;
+  final String title;
+  final String? artist;
+  final int count;
+
+  const TopSong({
+    required this.id,
+    required this.title,
+    this.artist,
+    required this.count,
+  });
+}
+
+/// Comprehensive singer stats from /me/stats.
+class SingerStats {
+  final int songsSung;
+  final int totalCheckins;
+  final int totalPoints;
+  final List<TopSong> topSongs;
+  final double? avgWaitMin;
+  final String? favoriteGenre;
+
+  const SingerStats({
+    required this.songsSung,
+    required this.totalCheckins,
+    required this.totalPoints,
+    required this.topSongs,
+    this.avgWaitMin,
+    this.favoriteGenre,
+  });
+}
+
+/// Social link entry for a singer profile.
+class SocialLink {
+  final String platform;
+  final String url;
+
+  const SocialLink({required this.platform, required this.url});
+}
+
 /// Song history item for a singer's profile.
 class SongHistoryItem {
   final String id;
@@ -34,8 +76,14 @@ class LoyaltyTier {
 class SingerProfile {
   final String id;
   final String name;
+  final String? realName;
+  final String? pronouns;
+  final String? phone;
   final String? bio;
   final String? avatarUrl;
+  final List<SocialLink> socialLinks;
+  final bool isCheckedIn;
+  final DateTime? checkedInAt;
   final int performancesCount;
   final int followersCount;
   final int followingCount;
@@ -46,8 +94,14 @@ class SingerProfile {
   const SingerProfile({
     required this.id,
     required this.name,
+    this.realName,
+    this.pronouns,
+    this.phone,
     this.bio,
     this.avatarUrl,
+    this.socialLinks = const [],
+    this.isCheckedIn = false,
+    this.checkedInAt,
     required this.performancesCount,
     required this.followersCount,
     required this.followingCount,
@@ -55,6 +109,43 @@ class SingerProfile {
     required this.songHistory,
     required this.favoriteSongs,
   });
+
+  SingerProfile copyWith({
+    String? name,
+    String? realName,
+    String? pronouns,
+    String? phone,
+    String? bio,
+    String? avatarUrl,
+    List<SocialLink>? socialLinks,
+    bool? isCheckedIn,
+    DateTime? checkedInAt,
+    int? performancesCount,
+    int? followersCount,
+    int? followingCount,
+    LoyaltyTier? tier,
+    List<SongHistoryItem>? songHistory,
+    List<SongHistoryItem>? favoriteSongs,
+  }) {
+    return SingerProfile(
+      id: id,
+      name: name ?? this.name,
+      realName: realName ?? this.realName,
+      pronouns: pronouns ?? this.pronouns,
+      phone: phone ?? this.phone,
+      bio: bio ?? this.bio,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      socialLinks: socialLinks ?? this.socialLinks,
+      isCheckedIn: isCheckedIn ?? this.isCheckedIn,
+      checkedInAt: checkedInAt ?? this.checkedInAt,
+      performancesCount: performancesCount ?? this.performancesCount,
+      followersCount: followersCount ?? this.followersCount,
+      followingCount: followingCount ?? this.followingCount,
+      tier: tier ?? this.tier,
+      songHistory: songHistory ?? this.songHistory,
+      favoriteSongs: favoriteSongs ?? this.favoriteSongs,
+    );
+  }
 }
 
 /// Check-in response.

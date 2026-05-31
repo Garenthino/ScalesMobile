@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:scales_mobile/data/repositories/leaderboard_repository.dart';
 import 'package:scales_mobile/data/repositories/singer_profile_repository.dart';
 import 'package:scales_mobile/data/repositories/social_repository.dart';
@@ -99,6 +101,160 @@ void main() {
       expect(profile.songHistory.single.songName, 'Sweet Caroline');
       expect(profile.songHistory.single.artistName, 'Neil Diamond');
       expect(profile.performancesCount, 1);
+    });
+
+    test('fetchMyProfile parses /me with social_links and aliases', () async {
+      final dio = _dioWithRoutes({
+        '/venues/venue_1/singers/me': _jsonResponse({
+          'id': 'singer_1',
+          'stage_name': 'Alex Singer',
+          'real_name': 'Alex Johnson',
+          'pronouns': 'they/them',
+          'phone': '+1-555-0100',
+          'bio': 'Karaoke regular',
+          'avatar_url': 'https://example.com/avatar.png',
+          'social_links': [
+            {'platform': 'Instagram', 'url': 'https://instagram.com/alex'},
+            {'platform': 'X', 'url': 'https://x.com/alex'},
+          ],
+          'is_checked_in': true,
+          'checked_in_at': '2026-05-31T22:00:00Z',
+          'total_points': 1240,
+          'followers_count': 12,
+          'following_count': 5,
+          'loyalty_tier': {
+            'name': 'Gold',
+            'points': 1240,
+            'points_to_next_tier': 260,
+            'color': '#FFD700',
+          },
+        }),
+        '/venues/venue_1/singers/singer_1/history': _jsonResponse({
+          'data': [],
+        }),
+      });
+      final repository = SingerProfileRepositoryImpl(dio: dio);
+
+      final profile = await repository.fetchMyProfile();
+
+      expect(profile.id, 'singer_1');
+      expect(profile.name, 'Alex Singer');
+      expect(profile.realName, 'Alex Johnson');
+      expect(profile.pronouns, 'they/them');
+      expect(profile.phone, '+1-555-0100');
+      expect(profile.bio, 'Karaoke regular');
+      expect(profile.avatarUrl, 'https://example.com/avatar.png');
+      expect(profile.socialLinks, hasLength(2));
+      expect(profile.socialLinks.first.platform, 'Instagram');
+      expect(profile.socialLinks.first.url, 'https://instagram.com/alex');
+      expect(profile.isCheckedIn, isTrue);
+      expect(profile.checkedInAt, isNotNull);
+      expect(profile.followersCount, 12);
+      expect(profile.followingCount, 5);
+    });
+
+    test('updateMyProfile sends PUT /me with allowed fields', () async {
+      RequestOptions? seenRequest;
+      final dio = _dioWithRoutes({
+        '/venues/venue_1/singers/me': (options) {
+          seenRequest = options;
+          return _jsonResponse({
+            'id': 'singer_1',
+            'stage_name': 'New Stage Name',
+            'real_name': 'New Real',
+            'pronouns': 'she/her',
+            'phone': '+1-555-0200',
+            'bio': 'Updated bio',
+            'social_links': [
+              {'platform': 'Instagram', 'url': 'https://instagram.com/new'},
+            ],
+            'total_points': 1240,
+            'loyalty_tier': {
+              'name': 'Gold',
+              'points': 1240,
+              'points_to_next_tier': 260,
+              'color': '#FFD700',
+            },
+          })(options);
+        },
+      });
+      final repository = SingerProfileRepositoryImpl(dio: dio);
+
+      final profile = await repository.updateMyProfile(
+        stageName: 'New Stage Name',
+        realName: 'New Real',
+        pronouns: 'she/her',
+        phone: '+1-555-0200',
+        bio: 'Updated bio',
+        socialLinks: [const SocialLink(platform: 'Instagram', url: 'https://instagram.com/new')],
+      );
+
+      expect(seenRequest?.method, 'PUT');
+      final body = seenRequest?.data as Map<String, dynamic>;
+      expect(body['stage_name'], 'New Stage Name');
+      expect(body['real_name'], 'New Real');
+      expect(body['pronouns'], 'she/her');
+      expect(body['phone'], '+1-555-0200');
+      expect(body['bio'], 'Updated bio');
+      expect(body['social_links'], isA<List>());
+      expect(profile.name, 'New Stage Name');
+    });
+
+    test('uploadAvatar sends POST /me/avatar and returns avatar_url', () async {
+      // Create a temp file so MultipartFile.fromFile can stat it
+      final tempFile = File('/tmp/avatar.png');
+      await tempFile.writeAsBytes(Uint8List(0));
+      addTearDown(() async {
+        if (await tempFile.exists()) await tempFile.delete();
+      });
+
+      RequestOptions? seenRequest;
+      final dio = _dioWithRoutes({
+        '/venues/venue_1/singers/me/avatar': (options) {
+          seenRequest = options;
+          return _jsonResponse({
+            'avatar_url': 'https://example.com/new_avatar.png',
+          }, statusCode: 201)(options);
+        },
+      });
+      final repository = SingerProfileRepositoryImpl(dio: dio);
+
+      final result = await repository.uploadAvatar(
+        XFile('/tmp/avatar.png'),
+        onProgress: (_) {},
+      );
+
+      expect(seenRequest?.method, 'POST');
+      expect(result, 'https://example.com/new_avatar.png');
+    });
+
+    test('fetchMyStats parses /me/stats with top_songs', () async {
+      final dio = _dioWithRoutes({
+        '/venues/venue_1/singers/me/stats': _jsonResponse({
+          'songs_sung': 42,
+          'total_checkins': 8,
+          'total_points': 1240,
+          'avg_wait_min': 12.5,
+          'favorite_genre': 'Rock',
+          'top_songs': [
+            {'id': 'song_1', 'title': 'Bohemian Rhapsody', 'artist': 'Queen', 'count': 5},
+            {'id': 'song_2', 'title': 'Sweet Caroline', 'artist': 'Neil Diamond', 'count': 3},
+            {'id': 'song_3', 'title': 'Purple Rain', 'artist': 'Prince', 'count': 2},
+          ],
+        }),
+      });
+      final repository = SingerProfileRepositoryImpl(dio: dio);
+
+      final stats = await repository.fetchMyStats();
+
+      expect(stats.songsSung, 42);
+      expect(stats.totalCheckins, 8);
+      expect(stats.totalPoints, 1240);
+      expect(stats.avgWaitMin, 12.5);
+      expect(stats.favoriteGenre, 'Rock');
+      expect(stats.topSongs, hasLength(3));
+      expect(stats.topSongs.first.title, 'Bohemian Rhapsody');
+      expect(stats.topSongs.first.count, 5);
     });
 
     test('parses paginated favorites list', () async {

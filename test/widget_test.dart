@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:scales_mobile/domain/entities/singer_profile.dart';
 import 'package:scales_mobile/domain/entities/song.dart';
 import 'package:scales_mobile/domain/repositories/singer_repository.dart';
@@ -49,7 +50,7 @@ void main() {
     expect(find.text('Profile'), findsOneWidget);
     expect(find.text('Alex Singer'), findsOneWidget);
     expect(find.text('Gold Tier'), findsOneWidget);
-    expect(find.text('Sweet Caroline'), findsOneWidget);
+    expect(find.textContaining('Sweet Caroline'), findsWidgets);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
@@ -134,10 +135,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Favorite Songs (2)'), findsOneWidget);
-    expect(find.text('Bohemian Rhapsody'), findsOneWidget);
-    expect(find.text('Purple Rain'), findsOneWidget);
-    expect(find.textContaining('Queen ·'), findsOneWidget);
-    expect(find.textContaining('Prince ·'), findsOneWidget);
+    expect(find.textContaining('Bohemian Rhapsody'), findsWidgets);
+    expect(find.textContaining('Purple Rain'), findsWidgets);
+    expect(find.textContaining('Queen'), findsWidgets);
+    expect(find.textContaining('Prince'), findsWidgets);
   });
 
   testWidgets('SongBrowserScreen favorite toggle calls repository', (
@@ -210,34 +211,57 @@ class _FakeSingerProfileRepository implements SingerProfileRepository {
     ),
   ];
 
-  @override
-  Future<SingerProfile> fetchProfile(String singerId) async {
-    return SingerProfile(
-      id: singerId,
-      name: 'Alex Singer',
-      bio: 'Karaoke regular',
-      avatarUrl: null,
-      performancesCount: _history.length,
-      followersCount: 12,
-      followingCount: 4,
-      tier: const LoyaltyTier(
-        name: 'Gold',
-        points: 1240,
-        pointsToNextTier: 260,
-        color: '#FFD700',
-      ),
-      songHistory: _history,
-      favoriteSongs: _favorites,
-    );
-  }
+  Future<SingerProfile> _makeProfile(String singerId) async => SingerProfile(
+    id: singerId,
+    name: 'Alex Singer',
+    bio: 'Karaoke regular',
+    avatarUrl: null,
+    performancesCount: _history.length,
+    followersCount: 12,
+    followingCount: 4,
+    tier: const LoyaltyTier(
+      name: 'Gold',
+      points: 1240,
+      pointsToNextTier: 260,
+      color: '#FFD700',
+    ),
+    songHistory: _history,
+    favoriteSongs: _favorites,
+  );
 
   @override
-  Future<SingerProfile> updateProfile(
-    String singerId, {
-    String? name,
+  Future<SingerProfile> fetchProfile(String singerId) async => _makeProfile(singerId);
+
+  @override
+  Future<SingerProfile> fetchMyProfile() async => _makeProfile('singer_1');
+
+  @override
+  Future<SingerProfile> updateMyProfile({
+    String? stageName,
+    String? realName,
+    String? pronouns,
+    String? phone,
     String? bio,
-    String? avatarUrl,
-  }) => fetchProfile(singerId);
+    List<SocialLink>? socialLinks,
+  }) => fetchMyProfile();
+
+  @override
+  Future<String?> uploadAvatar(
+    XFile image, {
+    void Function(double progress)? onProgress,
+  }) async => 'https://example.com/fake_avatar.png';
+
+  @override
+  Future<SingerStats> fetchMyStats() async => const SingerStats(
+    songsSung: 42,
+    totalCheckins: 8,
+    totalPoints: 1240,
+    topSongs: [
+      TopSong(id: 'song_1', title: 'Bohemian Rhapsody', artist: 'Queen', count: 5),
+      TopSong(id: 'song_2', title: 'Sweet Caroline', artist: 'Neil Diamond', count: 3),
+      TopSong(id: 'song_3', title: 'Purple Rain', artist: 'Prince', count: 2),
+    ],
+  );
 
   @override
   Future<List<SongHistoryItem>> fetchSongHistory(String singerId) async => _history;
@@ -317,35 +341,53 @@ class _SpySingerProfileRepository implements SingerProfileRepository {
   final List<String> addedSongIds = [];
   final List<String> removedSongIds = [];
 
-  @override
-  Future<SingerProfile> fetchProfile(String singerId) async {
-    return SingerProfile(
-      id: singerId,
-      name: 'Spy Singer',
-      bio: null,
-      avatarUrl: null,
-      performancesCount: 0,
-      followersCount: 0,
-      followingCount: 0,
-      tier: const LoyaltyTier(
-        name: 'Member',
-        points: 0,
-        pointsToNextTier: 100,
-        color: '#4CAF50',
-      ),
-      songHistory: const [],
-      favoriteSongs: const [],
-    );
-  }
+  Future<SingerProfile> _makeProfile(String singerId) async => SingerProfile(
+    id: singerId,
+    name: 'Spy Singer',
+    bio: null,
+    avatarUrl: null,
+    performancesCount: 0,
+    followersCount: 0,
+    followingCount: 0,
+    tier: const LoyaltyTier(
+      name: 'Member',
+      points: 0,
+      pointsToNextTier: 100,
+      color: '#4CAF50',
+    ),
+    songHistory: const [],
+    favoriteSongs: const [],
+  );
 
   @override
-  Future<SingerProfile> updateProfile(
-    String singerId, {
-    String? name,
+  Future<SingerProfile> fetchProfile(String singerId) async => _makeProfile(singerId);
+
+  @override
+  Future<SingerProfile> fetchMyProfile() async => _makeProfile('singer_1');
+
+  @override
+  Future<SingerProfile> updateMyProfile({
+    String? stageName,
+    String? realName,
+    String? pronouns,
+    String? phone,
     String? bio,
-    String? avatarUrl,
-  }) =>
-      fetchProfile(singerId);
+    List<SocialLink>? socialLinks,
+  }) => fetchMyProfile();
+
+  @override
+  Future<String?> uploadAvatar(
+    XFile image, {
+    void Function(double progress)? onProgress,
+  }) async => null;
+
+  @override
+  Future<SingerStats> fetchMyStats() async => const SingerStats(
+    songsSung: 0,
+    totalCheckins: 0,
+    totalPoints: 0,
+    topSongs: [],
+  );
 
   @override
   Future<List<SongHistoryItem>> fetchSongHistory(String singerId) async => const [];

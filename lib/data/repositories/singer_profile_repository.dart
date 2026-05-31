@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:scales_mobile/core/constants/app_constants.dart';
 import 'package:scales_mobile/domain/entities/singer_profile.dart';
 import 'package:scales_mobile/domain/repositories/singer_repository.dart';
@@ -31,6 +32,98 @@ class SingerProfileRepositoryImpl implements SingerProfileRepository {
     return {};
   }
 
+  // ------------------------------------------------------------------
+  // Helpers
+  // ------------------------------------------------------------------
+
+  SingerProfile _mapSingerProfile(Map<String, dynamic> data, {
+    List<SongHistoryItem> history = const [],
+    List<SongHistoryItem> favorites = const [],
+  }) {
+    final points = (data['total_points'] as num?)?.toInt() ?? 0;
+    final tierData = data['loyalty_tier'] as Map<String, dynamic>?;
+    final tier = tierData != null
+        ? LoyaltyTier(
+            name: tierData['name'] as String? ?? 'Member',
+            points: (tierData['points'] as num?)?.toInt() ?? points,
+            pointsToNextTier: (tierData['points_to_next_tier'] as num?)?.toInt() ?? 100,
+            color: tierData['color'] as String? ?? '#4CAF50',
+          )
+        : LoyaltyTier(
+            name: 'Member',
+            points: points,
+            pointsToNextTier: 100,
+            color: '#4CAF50',
+          );
+
+    final socialRaw = data['social_links'];
+    List<SocialLink> socialLinks = [];
+    if (socialRaw is List) {
+      socialLinks = socialRaw.map((e) {
+        final m = e as Map<String, dynamic>? ?? {};
+        return SocialLink(
+          platform: m['platform'] as String? ?? '',
+          url: m['url'] as String? ?? '',
+        );
+      }).toList();
+    } else if (socialRaw is Map) {
+      socialLinks = (socialRaw as Map<String, dynamic>).entries
+          .map((e) => SocialLink(platform: e.key, url: e.value.toString()))
+          .toList();
+    }
+
+    final checkedInAtRaw = data['checked_in_at'] as String?;
+
+    return SingerProfile(
+      id: data['id'] as String? ?? '',
+      name: data['stage_name'] as String? ?? data['name'] as String? ?? 'Unknown',
+      realName: data['real_name'] as String?,
+      pronouns: data['pronouns'] as String?,
+      phone: data['phone'] as String?,
+      bio: data['bio'] as String?,
+      avatarUrl: data['avatar_url'] as String?,
+      socialLinks: socialLinks,
+      isCheckedIn: data['is_checked_in'] as bool? ?? false,
+      checkedInAt: checkedInAtRaw != null ? DateTime.tryParse(checkedInAtRaw) : null,
+      performancesCount: history.length,
+      followersCount: (data['followers_count'] as num?)?.toInt() ?? 0,
+      followingCount: (data['following_count'] as num?)?.toInt() ?? 0,
+      tier: tier,
+      songHistory: history,
+      favoriteSongs: favorites,
+    );
+  }
+
+  SongHistoryItem _mapHistoryItem(Map<String, dynamic> data) {
+    final playedAtRaw = data['created_at'] ?? data['played_at'];
+    return SongHistoryItem(
+      id: data['id']?.toString() ?? '',
+      songName: data['song_title'] as String? ?? data['song_name'] as String? ?? 'Unknown',
+      artistName: data['artist'] as String? ?? data['artist_name'] as String? ?? 'Unknown',
+      playedAt: playedAtRaw != null
+          ? DateTime.tryParse(playedAtRaw as String) ?? DateTime.now()
+          : DateTime.now(),
+      venueName: data['venue_name'] as String?,
+    );
+  }
+
+  SongHistoryItem _mapFavoriteItem(Map<String, dynamic> data) {
+    final createdAtRaw = data['created_at'] as String?;
+    return SongHistoryItem(
+      id: data['song_id']?.toString() ?? data['id']?.toString() ?? '',
+      songName: data['title'] as String? ?? 'Unknown',
+      artistName: data['artist'] as String? ?? 'Unknown',
+      playedAt: createdAtRaw != null
+          ? DateTime.tryParse(createdAtRaw) ?? DateTime.now()
+          : DateTime.now(),
+      venueName: null,
+    );
+  }
+
+  // ------------------------------------------------------------------
+  // Profile
+  // ------------------------------------------------------------------
+
   @override
   Future<SingerProfile> fetchProfile(String singerId) async {
     final venueId = await _getActiveVenueId();
@@ -57,56 +150,60 @@ class SingerProfileRepositoryImpl implements SingerProfileRepository {
     }
   }
 
-  SingerProfile _mapSingerProfile(Map<String, dynamic> data, {List<SongHistoryItem> history = const [], List<SongHistoryItem> favorites = const []}) {
-    final points = (data['total_points'] as num?)?.toInt() ?? 0;
-    final tierData = data['loyalty_tier'] as Map<String, dynamic>?;
-    final tier = tierData != null
-        ? LoyaltyTier(
-            name: tierData['name'] as String? ?? 'Member',
-            points: (tierData['points'] as num?)?.toInt() ?? points,
-            pointsToNextTier: (tierData['points_to_next_tier'] as num?)?.toInt() ?? 100,
-            color: tierData['color'] as String? ?? '#4CAF50',
-          )
-        : LoyaltyTier(
-            name: 'Member',
-            points: points,
-            pointsToNextTier: 100,
-            color: '#4CAF50',
-          );
-
-    return SingerProfile(
-      id: data['id'] as String? ?? '',
-      name: data['stage_name'] as String? ?? 'Unknown',
-      bio: data['bio'] as String? ?? data['pronouns'] as String?,
-      avatarUrl: data['avatar_url'] as String?,
-      performancesCount: history.length,
-      followersCount: 0,
-      followingCount: 0,
-      tier: tier,
-      songHistory: history,
-      favoriteSongs: favorites,
-    );
+  @override
+  Future<SingerProfile> fetchMyProfile() async {
+    final venueId = await _getActiveVenueId();
+    if (venueId == null) {
+      throw Exception('No active venue');
+    }
+    try {
+      final response = await _dio.get(
+        '/venues/$venueId/singers/me',
+        options: Options(headers: await _authHeaders()),
+      );
+      if (response.statusCode == 200) {
+        final data = response.data as Map<String, dynamic>;
+        final history = await fetchSongHistory(data['id'] as String? ?? '');
+        final favorites = await fetchFavoriteSongs(data['id'] as String? ?? '');
+        return _mapSingerProfile(data, history: history, favorites: favorites);
+      }
+      throw Exception('Failed to fetch my profile: ${response.statusCode}');
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        throw Exception('Session expired. Please sign in again.');
+      }
+      rethrow;
+    }
   }
 
   @override
-  Future<SingerProfile> updateProfile(
-    String singerId, {
-    String? name,
+  Future<SingerProfile> updateMyProfile({
+    String? stageName,
+    String? realName,
+    String? pronouns,
+    String? phone,
     String? bio,
-    String? avatarUrl,
+    List<SocialLink>? socialLinks,
   }) async {
     final venueId = await _getActiveVenueId();
     if (venueId == null) {
       throw Exception('No active venue');
     }
     final body = <String, dynamic>{};
-    if (name != null) body['stage_name'] = name;
+    if (stageName != null) body['stage_name'] = stageName;
+    if (realName != null) body['real_name'] = realName;
+    if (pronouns != null) body['pronouns'] = pronouns;
+    if (phone != null) body['phone'] = phone;
     if (bio != null) body['bio'] = bio;
-    if (avatarUrl != null) body['avatar_url'] = avatarUrl;
+    if (socialLinks != null) {
+      body['social_links'] = socialLinks
+          .map((l) => {'platform': l.platform, 'url': l.url})
+          .toList();
+    }
 
     try {
       final response = await _dio.put(
-        '/venues/$venueId/singers/$singerId',
+        '/venues/$venueId/singers/me',
         data: body,
         options: Options(headers: await _authHeaders()),
       );
@@ -122,6 +219,106 @@ class SingerProfileRepositoryImpl implements SingerProfileRepository {
       rethrow;
     }
   }
+
+  // ------------------------------------------------------------------
+  // Avatar upload
+  // ------------------------------------------------------------------
+
+  @override
+  Future<String?> uploadAvatar(
+    XFile image, {
+    void Function(double progress)? onProgress,
+  }) async {
+    final venueId = await _getActiveVenueId();
+    if (venueId == null) {
+      throw Exception('No active venue');
+    }
+
+    final filePath = image.path;
+    final fileName = filePath.split('/').last;
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(
+        filePath,
+        filename: fileName,
+      ),
+    });
+
+    try {
+      final response = await _dio.post(
+        '/venues/$venueId/singers/me/avatar',
+        data: formData,
+        options: Options(headers: await _authHeaders()),
+        onSendProgress: (sent, total) {
+          if (total > 0 && onProgress != null) {
+            onProgress(sent / total);
+          }
+        },
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = response.data as Map<String, dynamic>? ?? {};
+        return data['avatar_url'] as String?;
+      }
+      throw Exception('Failed to upload avatar: ${response.statusCode}');
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        throw Exception('Session expired. Please sign in again.');
+      }
+      if (e.response?.statusCode == 413) {
+        throw Exception('Image too large. Max 5 MB.');
+      }
+      rethrow;
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Stats
+  // ------------------------------------------------------------------
+
+  @override
+  Future<SingerStats> fetchMyStats() async {
+    final venueId = await _getActiveVenueId();
+    if (venueId == null) {
+      throw Exception('No active venue');
+    }
+    try {
+      final response = await _dio.get(
+        '/venues/$venueId/singers/me/stats',
+        options: Options(headers: await _authHeaders()),
+      );
+      if (response.statusCode == 200) {
+        final data = response.data as Map<String, dynamic>;
+        final topRaw = data['top_songs'] as List<dynamic>? ?? [];
+        final topSongs = topRaw.map((e) {
+          final m = e as Map<String, dynamic>;
+          return TopSong(
+            id: m['id']?.toString() ?? '',
+            title: m['title'] as String? ?? 'Unknown',
+            artist: m['artist'] as String?,
+            count: (m['count'] as num?)?.toInt() ?? 0,
+          );
+        }).toList();
+
+        return SingerStats(
+          songsSung: (data['songs_sung'] as num?)?.toInt() ?? 0,
+          totalCheckins: (data['total_checkins'] as num?)?.toInt() ?? 0,
+          totalPoints: (data['total_points'] as num?)?.toInt() ?? 0,
+          topSongs: topSongs,
+          avgWaitMin: (data['avg_wait_min'] as num?)?.toDouble(),
+          favoriteGenre: data['favorite_genre'] as String?,
+        );
+      }
+      throw Exception('Failed to fetch stats: ${response.statusCode}');
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        throw Exception('Session expired. Please sign in again.');
+      }
+      rethrow;
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Song history / favorites
+  // ------------------------------------------------------------------
 
   @override
   Future<List<SongHistoryItem>> fetchSongHistory(String singerId) async {
@@ -154,19 +351,6 @@ class SingerProfileRepositoryImpl implements SingerProfileRepository {
     }
   }
 
-  SongHistoryItem _mapHistoryItem(Map<String, dynamic> data) {
-    final playedAtRaw = data['created_at'] ?? data['played_at'];
-    return SongHistoryItem(
-      id: data['id']?.toString() ?? '',
-      songName: data['song_title'] as String? ?? data['song_name'] as String? ?? 'Unknown',
-      artistName: data['artist'] as String? ?? data['artist_name'] as String? ?? 'Unknown',
-      playedAt: playedAtRaw != null
-          ? DateTime.tryParse(playedAtRaw as String) ?? DateTime.now()
-          : DateTime.now(),
-      venueName: data['venue_name'] as String?,
-    );
-  }
-
   @override
   Future<List<SongHistoryItem>> fetchFavoriteSongs(String singerId) async {
     final venueId = await _getActiveVenueId();
@@ -190,19 +374,6 @@ class SingerProfileRepositoryImpl implements SingerProfileRepository {
       }
       return [];
     }
-  }
-
-  SongHistoryItem _mapFavoriteItem(Map<String, dynamic> data) {
-    final createdAtRaw = data['created_at'] as String?;
-    return SongHistoryItem(
-      id: data['song_id']?.toString() ?? data['id']?.toString() ?? '',
-      songName: data['title'] as String? ?? 'Unknown',
-      artistName: data['artist'] as String? ?? 'Unknown',
-      playedAt: createdAtRaw != null
-          ? DateTime.tryParse(createdAtRaw) ?? DateTime.now()
-          : DateTime.now(),
-      venueName: null,
-    );
   }
 
   @override

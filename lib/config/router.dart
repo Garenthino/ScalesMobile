@@ -103,10 +103,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: RoutePaths.singerProfileEdit,
-        builder: (context, state) {
-          final singerId = state.extra as String?;
-          return EditProfileScreen(singerId: singerId ?? 'demo_user');
-        },
+        builder: (context, state) => const EditProfileScreen(),
       ),
       GoRoute(
         path: RoutePaths.checkIn,

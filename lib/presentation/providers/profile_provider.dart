@@ -7,11 +7,23 @@ final singerProfileRepoProvider = Provider<SingerProfileRepository>(
   (_) => SingerProfileRepositoryImpl(),
 );
 
+/// Provider that fetches the current user's own profile via /me.
+final myProfileProvider = FutureProvider.autoDispose<SingerProfile>((ref) async {
+  final repo = ref.watch(singerProfileRepoProvider);
+  return repo.fetchMyProfile();
+});
+
 /// Provider that fetches a singer's profile by ID.
 final singerProfileProvider = FutureProvider.autoDispose
     .family<SingerProfile, String>((ref, singerId) async {
   final repo = ref.watch(singerProfileRepoProvider);
   return repo.fetchProfile(singerId);
+});
+
+/// Provider for own stats via /me/stats.
+final myStatsProvider = FutureProvider.autoDispose<SingerStats>((ref) async {
+  final repo = ref.watch(singerProfileRepoProvider);
+  return repo.fetchMyStats();
 });
 
 /// Provider for song history.
@@ -34,7 +46,7 @@ final favoriteMutationProvider = Provider<FavoriteMutation>((ref) {
     repo: ref.read(singerProfileRepoProvider),
     invalidate: () {
       ref.invalidate(favoriteSongsProvider);
-      ref.invalidate(singerProfileProvider);
+      ref.invalidate(myProfileProvider);
     },
   );
 });
