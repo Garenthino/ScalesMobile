@@ -2,7 +2,7 @@ name: scales_mobile
 description: "Singer-facing mobile app for the Scales karaoke platform."
 publish_to: 'none'
 
-version: 0.2.1+1
+version: 0.2.2+1
 
 environment:
   sdk: ^3.12.0
@@ -37,6 +37,14 @@ dependencies:
   # Image picker for profile
   image_picker: ^1.1.2
   flutter_stripe: ^12.6.0
+
+  # Push notifications
+  firebase_core: ^3.12.1
+  firebase_messaging: ^15.2.4
+  flutter_local_notifications: ^21.0.0
+
+  # Time formatting
+  intl: ^0.20.2
 
 dev_dependencies:
   flutter_test:

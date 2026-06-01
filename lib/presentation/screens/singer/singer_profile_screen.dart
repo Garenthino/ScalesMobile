@@ -10,6 +10,7 @@ import 'package:scales_mobile/presentation/providers/social_provider.dart';
 import 'package:scales_mobile/presentation/screens/singer/achievements_screen.dart';
 import 'package:scales_mobile/presentation/screens/payments/tip_bottom_sheet.dart';
 import 'package:scales_mobile/presentation/screens/payments/payment_history_screen.dart';
+import 'package:scales_mobile/presentation/screens/notifications/notification_settings_screen.dart';
 import 'package:scales_mobile/services/venue_storage.dart';
 
 class SingerProfileScreen extends ConsumerStatefulWidget {
@@ -129,6 +130,8 @@ class _ProfileBody extends StatelessWidget {
                   _AchievementsButton(),
                   const SizedBox(height: 24),
                   _PaymentsButton(),
+                  const SizedBox(height: 24),
+                  _NotificationSettingsButton(),
                   const SizedBox(height: 24),
                   _CheckInQR(userId: userId),
                   const SizedBox(height: 24),
@@ -522,6 +525,25 @@ class _PaymentsButton extends StatelessWidget {
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => const PaymentHistoryScreen(),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _NotificationSettingsButton extends StatelessWidget {
+  const _NotificationSettingsButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton.icon(
+      icon: const Icon(Icons.notifications_active),
+      label: const Text('Notification Settings'),
+      onPressed: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const NotificationSettingsScreen(),
           ),
         );
       },

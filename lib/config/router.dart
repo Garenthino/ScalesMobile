@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../presentation/screens/notifications/notification_center_screen.dart';
+import '../presentation/screens/notifications/notification_settings_screen.dart';
 import '../presentation/screens/home/home_screen.dart';
 import '../presentation/screens/songs/song_browser_screen.dart';
 import '../presentation/screens/auth/auth_screen.dart';
@@ -131,6 +133,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RoutePaths.paymentHistory,
         builder: (context, state) => const PaymentHistoryScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.notifications,
+        builder: (context, state) => const NotificationCenterScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.notificationSettings,
+        builder: (context, state) => const NotificationSettingsScreen(),
       ),
     ],
   );

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../services/venue_storage.dart';
+import '../../providers/notification_provider.dart';
 
 /// Home screen — singer dashboard.
 ///
@@ -42,6 +43,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       appBar: AppBar(
         title: Text(venueName),
         actions: [
+          _NotificationBadgeIcon(),
           IconButton(
             icon: const Icon(Icons.swap_horiz),
             tooltip: 'Switch venue',
@@ -138,6 +140,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ],
             ),
+    );
+  }
+}
+
+class _NotificationBadgeIcon extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final countAsync = ref.watch(unreadCountProvider);
+    return countAsync.when(
+      data: (count) => Badge(
+        isLabelVisible: count > 0,
+        label: Text('$count'),
+        child: IconButton(
+          icon: const Icon(Icons.notifications),
+          onPressed: () => context.push(RoutePaths.notifications),
+        ),
+      ),
+      loading: () => IconButton(
+        icon: const Icon(Icons.notifications),
+        onPressed: () => context.push(RoutePaths.notifications),
+      ),
+      error: (_, __) => IconButton(
+        icon: const Icon(Icons.notifications),
+        onPressed: () => context.push(RoutePaths.notifications),
+      ),
     );
   }
 }

@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "123456789",
+    "project_id": "scales-karaoke",
+    "storage_bucket": "scales-karaoke.appspot.com",
+    "firebase_url": "https://scales-karaoke.firebaseio.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:123456789:android:YOUR_ANDROID_APP_ID",
+        "android_client_info": {
+          "package_name": "com.example.scales_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "YOUR_API_KEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

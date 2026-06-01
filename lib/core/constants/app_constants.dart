@@ -12,6 +12,8 @@ class RoutePaths {
   static const String leaderboard = '/leaderboard';
   static const String venueDetail = '/venue/:id';
   static const String paymentHistory = '/singer/payments';
+  static const String notifications = '/notifications';
+  static const String notificationSettings = '/notifications/settings';
 }
 
 /// API endpoint constants.
