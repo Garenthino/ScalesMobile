@@ -25,7 +25,7 @@ class NotificationRepositoryImpl implements NotificationRepository {
     if (authToken == null || authToken.isEmpty) return;
 
     await _dio.post(
-      '/singers/me/devices',
+      '/venues/$venueId/singers/me/devices',
       data: {
         'token': token,
         'platform': platform ?? 'android',
@@ -44,7 +44,7 @@ class NotificationRepositoryImpl implements NotificationRepository {
     if (authToken == null || authToken.isEmpty) return;
 
     await _dio.delete(
-      '/singers/me/devices/$token',
+      '/venues/$venueId/singers/me/devices/$token',
       options: Options(headers: {'Authorization': 'Bearer $authToken'}),
     );
   }
@@ -58,7 +58,7 @@ class NotificationRepositoryImpl implements NotificationRepository {
     if (authToken == null || authToken.isEmpty) return [];
 
     final response = await _dio.get(
-      '/singers/me/notifications',
+      '/venues/$venueId/singers/me/notifications',
       queryParameters: {'limit': limit, 'offset': offset},
       options: Options(headers: {'Authorization': 'Bearer $authToken'}),
     );
@@ -80,7 +80,7 @@ class NotificationRepositoryImpl implements NotificationRepository {
     if (authToken == null || authToken.isEmpty) return;
 
     await _dio.patch(
-      '/singers/me/notifications/$notificationId',
+      '/venues/$venueId/singers/me/notifications/$notificationId',
       data: {'read': true},
       options: Options(headers: {'Authorization': 'Bearer $authToken'}),
     );
@@ -95,7 +95,7 @@ class NotificationRepositoryImpl implements NotificationRepository {
     if (authToken == null || authToken.isEmpty) return;
 
     await _dio.patch(
-      '/singers/me/notifications',
+      '/venues/$venueId/singers/me/notifications',
       data: {'mark_all_read': true},
       options: Options(headers: {'Authorization': 'Bearer $authToken'}),
     );
@@ -110,7 +110,7 @@ class NotificationRepositoryImpl implements NotificationRepository {
     if (authToken == null || authToken.isEmpty) return 0;
 
     final response = await _dio.get(
-      '/singers/me/notifications/unread-count',
+      '/venues/$venueId/singers/me/notifications/unread-count',
       options: Options(headers: {'Authorization': 'Bearer $authToken'}),
     );
 
@@ -130,7 +130,7 @@ class NotificationRepositoryImpl implements NotificationRepository {
     if (authToken == null || authToken.isEmpty) return;
 
     await _dio.put(
-      '/singers/me/notification-settings',
+      '/venues/$venueId/singers/me/notification-settings',
       data: {
         'up_soon': settings.upSoon,
         'on_stage': settings.onStage,
@@ -153,7 +153,7 @@ class NotificationRepositoryImpl implements NotificationRepository {
     if (authToken == null || authToken.isEmpty) return const NotificationSettings();
 
     final response = await _dio.get(
-      '/singers/me/notification-settings',
+      '/venues/$venueId/singers/me/notification-settings',
       options: Options(headers: {'Authorization': 'Bearer $authToken'}),
     );
 
