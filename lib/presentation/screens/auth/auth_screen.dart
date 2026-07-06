@@ -43,7 +43,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     if (mounted) {
       setState(() => _isLoading = false);
       if (success) {
-        context.go(RoutePaths.home);
+        final authState = ref.read(authProvider);
+        final needsVenue = authState is Authenticated && authState.activeVenueId == null;
+        context.go(needsVenue ? RoutePaths.venueSelector : RoutePaths.home);
       } else {
         setState(() => _error = 'Invalid email or password');
       }

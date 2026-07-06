@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../data/repositories/venue_repository.dart';
+import '../../../data/repositories/auth_repository.dart';
 import '../../../services/venue_storage.dart';
 import '../../../core/constants/app_constants.dart';
 
@@ -53,6 +54,23 @@ class _VenueQrScannerScreenState extends State<VenueQrScannerScreen> {
       ));
       await storage.setActiveVenue(venue.id);
       await storage.setOnboardingComplete(true);
+
+      // If already logged in as global account, join this venue immediately
+      final accountToken = storage.getAccountToken();
+      if (accountToken != null && accountToken.isNotEmpty) {
+        final authRepo = AccountAuthRepository();
+        final venueResult = await authRepo.joinVenue(
+          venueId: venue.id,
+          accountToken: accountToken,
+        );
+        await storage.setToken(venue.id, venueResult.accessToken);
+        await storage.setRefreshToken(venue.id, venueResult.refreshToken);
+        await storage.setSingerId(venue.id, venueResult.singerId);
+        if (mounted) {
+          context.go(RoutePaths.home);
+          return;
+        }
+      }
 
       if (mounted) {
         context.go(RoutePaths.auth);

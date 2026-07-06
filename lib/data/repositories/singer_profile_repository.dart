@@ -152,22 +152,46 @@ class SingerProfileRepositoryImpl implements SingerProfileRepository {
 
   @override
   Future<SingerProfile> fetchMyProfile() async {
-    final venueId = await _getActiveVenueId();
-    if (venueId == null) {
-      throw Exception('No active venue');
-    }
+    final storage = await VenueStorage.create();
+    final accountToken = storage.getAccountToken();
+    final venueId = storage.getActiveVenueId();
+
     try {
-      final response = await _dio.get(
-        '/venues/$venueId/singers/me',
-        options: Options(headers: await _authHeaders()),
-      );
-      if (response.statusCode == 200) {
-        final data = response.data as Map<String, dynamic>;
-        final history = await fetchSongHistory(data['id'] as String? ?? '');
-        final favorites = await fetchFavoriteSongs(data['id'] as String? ?? '');
-        return _mapSingerProfile(data, history: history, favorites: favorites);
+      Map<String, dynamic> data;
+      if (accountToken != null && accountToken.isNotEmpty) {
+        // Global account profile (cross-venue)
+        final response = await _dio.get(
+          '/accounts/me',
+          options: Options(headers: {'Authorization': 'Bearer $accountToken'}),
+        );
+        if (response.statusCode == 200) {
+          data = response.data as Map<String, dynamic>;
+        } else {
+          throw Exception('Failed to fetch account profile: ${response.statusCode}');
+        }
+      } else if (venueId != null) {
+        // Legacy venue-scoped profile
+        final response = await _dio.get(
+          '/venues/$venueId/singers/me',
+          options: Options(headers: await _authHeaders()),
+        );
+        if (response.statusCode == 200) {
+          data = response.data as Map<String, dynamic>;
+        } else {
+          throw Exception('Failed to fetch my profile: ${response.statusCode}');
+        }
+      } else {
+        throw Exception('No active account or venue');
       }
-      throw Exception('Failed to fetch my profile: ${response.statusCode}');
+
+      final singerId = data['id'] as String? ?? '';
+      final history = venueId != null && singerId.isNotEmpty
+          ? await fetchSongHistory(singerId)
+          : <SongHistoryItem>[];
+      final favorites = venueId != null && singerId.isNotEmpty
+          ? await fetchFavoriteSongs(singerId)
+          : <SongHistoryItem>[];
+      return _mapSingerProfile(data, history: history, favorites: favorites);
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
         throw Exception('Session expired. Please sign in again.');
@@ -185,9 +209,11 @@ class SingerProfileRepositoryImpl implements SingerProfileRepository {
     String? bio,
     List<SocialLink>? socialLinks,
   }) async {
-    final venueId = await _getActiveVenueId();
-    if (venueId == null) {
-      throw Exception('No active venue');
+    final storage = await VenueStorage.create();
+    final accountToken = storage.getAccountToken();
+    final venueId = storage.getActiveVenueId();
+    if (accountToken == null && venueId == null) {
+      throw Exception('No active account or venue');
     }
     final body = <String, dynamic>{};
     if (stageName != null) body['stage_name'] = stageName;
@@ -202,11 +228,17 @@ class SingerProfileRepositoryImpl implements SingerProfileRepository {
     }
 
     try {
-      final response = await _dio.put(
-        '/venues/$venueId/singers/me',
-        data: body,
-        options: Options(headers: await _authHeaders()),
-      );
+      final response = accountToken != null && accountToken.isNotEmpty
+          ? await _dio.put(
+              '/accounts/me',
+              data: body,
+              options: Options(headers: {'Authorization': 'Bearer $accountToken'}),
+            )
+          : await _dio.put(
+              '/venues/$venueId/singers/me',
+              data: body,
+              options: Options(headers: await _authHeaders()),
+            );
       if (response.statusCode == 200) {
         final data = response.data as Map<String, dynamic>;
         return _mapSingerProfile(data);
@@ -229,9 +261,11 @@ class SingerProfileRepositoryImpl implements SingerProfileRepository {
     XFile image, {
     void Function(double progress)? onProgress,
   }) async {
-    final venueId = await _getActiveVenueId();
-    if (venueId == null) {
-      throw Exception('No active venue');
+    final storage = await VenueStorage.create();
+    final accountToken = storage.getAccountToken();
+    final venueId = storage.getActiveVenueId();
+    if (accountToken == null && venueId == null) {
+      throw Exception('No active account or venue');
     }
 
     final filePath = image.path;
@@ -244,16 +278,27 @@ class SingerProfileRepositoryImpl implements SingerProfileRepository {
     });
 
     try {
-      final response = await _dio.post(
-        '/venues/$venueId/singers/me/avatar',
-        data: formData,
-        options: Options(headers: await _authHeaders()),
-        onSendProgress: (sent, total) {
-          if (total > 0 && onProgress != null) {
-            onProgress(sent / total);
-          }
-        },
-      );
+      final response = accountToken != null && accountToken.isNotEmpty
+          ? await _dio.post(
+              '/accounts/me/avatar',
+              data: formData,
+              options: Options(headers: {'Authorization': 'Bearer $accountToken'}),
+              onSendProgress: (sent, total) {
+                if (total > 0 && onProgress != null) {
+                  onProgress(sent / total);
+                }
+              },
+            )
+          : await _dio.post(
+              '/venues/$venueId/singers/me/avatar',
+              data: formData,
+              options: Options(headers: await _authHeaders()),
+              onSendProgress: (sent, total) {
+                if (total > 0 && onProgress != null) {
+                  onProgress(sent / total);
+                }
+              },
+            );
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = response.data as Map<String, dynamic>? ?? {};
         return data['avatar_url'] as String?;

@@ -14,7 +14,7 @@ class CheckInScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
     final userId = switch (authState) {
-      Authenticated(:final userId) => userId,
+      Authenticated(:final activeSingerId) => activeSingerId ?? 'demo_user',
       _ => 'demo_user',
     };
 

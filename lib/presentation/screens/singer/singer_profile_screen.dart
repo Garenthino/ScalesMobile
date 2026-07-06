@@ -131,6 +131,8 @@ class _ProfileBody extends StatelessWidget {
                   const SizedBox(height: 24),
                   _PaymentsButton(),
                   const SizedBox(height: 24),
+                  _SwitchVenueButton(),
+                  const SizedBox(height: 24),
                   _NotificationSettingsButton(),
                   const SizedBox(height: 24),
                   _CheckInQR(userId: userId),
@@ -597,6 +599,25 @@ class _SectionTitle extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+      ),
+    );
+  }
+}
+
+class _SwitchVenueButton extends ConsumerWidget {
+  const _SwitchVenueButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => context.push(RoutePaths.venueSelector),
+        icon: const Icon(Icons.swap_horiz),
+        label: const Text('Switch Venue'),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+        ),
       ),
     );
   }

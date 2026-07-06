@@ -16,6 +16,7 @@ import '../presentation/screens/singer/edit_profile_screen.dart';
 import '../presentation/screens/onboarding/venue_onboarding_screen.dart';
 import '../presentation/screens/onboarding/venue_qr_scanner_screen.dart';
 import '../presentation/screens/venue/venue_switcher_screen.dart';
+import '../presentation/screens/venue/venue_selector_screen.dart';
 import '../presentation/screens/payments/payment_history_screen.dart';
 import '../presentation/providers/auth_provider.dart';
 import '../core/constants/app_constants.dart';
@@ -27,16 +28,22 @@ Future<String?> _asyncRedirect(GoRouterState state, Ref ref) async {
   final path = state.uri.path;
   final storage = await VenueStorage.create();
 
-  final onboardingComplete = storage.isOnboardingComplete();
   final activeVenueId = storage.getActiveVenueId();
 
   // Allow public routes unconditionally
-  if (path == RoutePaths.splash || path == RoutePaths.onboarding) {
+  if (path == RoutePaths.splash ||
+      path == RoutePaths.onboarding ||
+      path == RoutePaths.venueSelector ||
+      path == RoutePaths.auth) {
     return null;
   }
 
-  // If no venue is set, force onboarding
-  if (!onboardingComplete || activeVenueId == null) {
+  // If account token exists but no venue is active, allow venue selector
+  final accountToken = storage.getAccountToken();
+  if (activeVenueId == null) {
+    if (accountToken != null && accountToken.isNotEmpty) {
+      return RoutePaths.venueSelector;
+    }
     return RoutePaths.onboarding;
   }
 
@@ -122,6 +129,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/venue/switch',
         builder: (context, state) => const VenueSwitcherScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.venueSelector,
+        builder: (context, state) => const VenueSelectorScreen(),
       ),
       GoRoute(
         path: RoutePaths.venueDetail,

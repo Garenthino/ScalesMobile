@@ -55,38 +55,33 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     try {
       final storage = await VenueStorage.create();
-      final venue = storage.getActiveVenue();
-      if (venue == null) {
-        setState(() {
-          _isLoading = false;
-          _error = 'No active venue. Please set up a venue first.';
-        });
-        return;
-      }
+      final selectedVenue = storage.getActiveVenue();
 
-      final repo = ref.read(authRepositoryProvider);
-      await repo.register(
-        venueId: venue.id,
-        stageName: stageName,
+      final repo = ref.read(accountAuthRepositoryProvider);
+      final accountResult = await repo.register(
         email: email,
         password: password,
+        stageName: stageName,
       );
 
-      // Auto-login after registration
-      final loginResult = await repo.login(email, password);
-      if (loginResult != null) {
-        await storage.setToken(loginResult.venueId, loginResult.accessToken);
-        await storage.setRefreshToken(loginResult.venueId, loginResult.refreshToken);
-        if (mounted) {
-          context.go(RoutePaths.home);
-        }
-      } else {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-            _error = 'Registration succeeded but auto-login failed. Please sign in manually.';
-          });
-        }
+      // Persist global account token
+      await storage.setAccountToken(accountResult.accessToken);
+      await storage.setAccountRefreshToken(accountResult.refreshToken);
+      await storage.setAccountId(accountResult.accountId);
+
+      // If user already selected a venue, join it now and store singer token
+      if (selectedVenue != null) {
+        final venueResult = await repo.joinVenue(
+          venueId: selectedVenue.id,
+          accountToken: accountResult.accessToken,
+        );
+        await storage.setToken(selectedVenue.id, venueResult.accessToken);
+        await storage.setRefreshToken(selectedVenue.id, venueResult.refreshToken);
+        await storage.setSingerId(selectedVenue.id, venueResult.singerId);
+      }
+
+      if (mounted) {
+        context.go(selectedVenue != null ? RoutePaths.home : RoutePaths.venueSelector);
       }
     } catch (e) {
       if (mounted) {

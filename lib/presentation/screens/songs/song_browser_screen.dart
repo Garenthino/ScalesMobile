@@ -62,7 +62,7 @@ class _SongBrowserScreenState extends ConsumerState<SongBrowserScreen> {
       final repo = ref.read(singerProfileRepoProvider);
       final authState = ref.read(authProvider);
       final userId = switch (authState) {
-        Authenticated(:final userId) => userId,
+        Authenticated(:final activeSingerId) => activeSingerId,
         _ => null,
       };
       if (userId == null) return;
@@ -123,7 +123,7 @@ class _SongBrowserScreenState extends ConsumerState<SongBrowserScreen> {
 
     final authState = ref.read(authProvider);
     final userId = switch (authState) {
-      Authenticated(:final userId) => userId,
+      Authenticated(:final activeSingerId) => activeSingerId,
       _ => null,
     };
     if (userId == null) {

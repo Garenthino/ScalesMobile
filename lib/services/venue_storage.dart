@@ -65,6 +65,10 @@ class VenueStorage {
   static const _activeVenueKey = 'scales_active_venue_id';
   static const _authPrefix = 'scales_auth_';
   static const _onboardingCompleteKey = 'scales_onboarding_complete';
+  static const _accountTokenKey = 'scales_account_token';
+  static const _accountRefreshTokenKey = 'scales_account_refresh_token';
+  static const _accountIdKey = 'scales_account_id';
+  static const _singerIdPrefix = 'scales_singer_id_';
 
   late final SharedPreferences _prefs;
 
@@ -74,6 +78,40 @@ class VenueStorage {
     final storage = VenueStorage._();
     storage._prefs = await SharedPreferences.getInstance();
     return storage;
+  }
+
+  // ------------------------------------------------------------------
+  // Global account tokens
+  // ------------------------------------------------------------------
+
+  String? getAccountToken() => _prefs.getString(_accountTokenKey);
+
+  Future<void> setAccountToken(String token) async {
+    await _prefs.setString(_accountTokenKey, token);
+  }
+
+  Future<void> clearAccountToken() async {
+    await _prefs.remove(_accountTokenKey);
+  }
+
+  String? getAccountRefreshToken() => _prefs.getString(_accountRefreshTokenKey);
+
+  Future<void> setAccountRefreshToken(String token) async {
+    await _prefs.setString(_accountRefreshTokenKey, token);
+  }
+
+  Future<void> clearAccountRefreshToken() async {
+    await _prefs.remove(_accountRefreshTokenKey);
+  }
+
+  String? getAccountId() => _prefs.getString(_accountIdKey);
+
+  Future<void> setAccountId(String accountId) async {
+    await _prefs.setString(_accountIdKey, accountId);
+  }
+
+  Future<void> clearAccountId() async {
+    await _prefs.remove(_accountIdKey);
   }
 
   // ------------------------------------------------------------------
@@ -140,6 +178,20 @@ class VenueStorage {
 
   Future<void> setOnboardingComplete(bool value) async {
     await _prefs.setBool(_onboardingCompleteKey, value);
+  }
+
+  // ------------------------------------------------------------------
+  // Per-venue singer id
+  // ------------------------------------------------------------------
+
+  String? getSingerId(String venueId) => _prefs.getString('$_singerIdPrefix$venueId');
+
+  Future<void> setSingerId(String venueId, String singerId) async {
+    await _prefs.setString('$_singerIdPrefix$venueId', singerId);
+  }
+
+  Future<void> clearSingerId(String venueId) async {
+    await _prefs.remove('$_singerIdPrefix$venueId');
   }
 
   // ------------------------------------------------------------------
@@ -224,9 +276,15 @@ class VenueStorage {
     await _prefs.remove(_activeVenueKey);
     await _prefs.remove(_onboardingCompleteKey);
     await _prefs.remove(_lastCheckInKey);
-    // Remove all auth tokens
+    await _prefs.remove(_accountTokenKey);
+    await _prefs.remove(_accountRefreshTokenKey);
+    await _prefs.remove(_accountIdKey);
+    // Remove all per-venue and per-singer keys
     for (final key in _prefs.getKeys()) {
-      if (key.startsWith(_authPrefix) || key.startsWith(_refreshTokenPrefix)) {
+      if (key.startsWith(_authPrefix) ||
+          key.startsWith(_refreshTokenPrefix) ||
+          key.startsWith(_achievementsPrefix) ||
+          key.startsWith(_singerIdPrefix)) {
         await _prefs.remove(key);
       }
     }
