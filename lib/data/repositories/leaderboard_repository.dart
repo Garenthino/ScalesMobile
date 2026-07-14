@@ -52,7 +52,7 @@ class LeaderboardRepositoryImpl implements LeaderboardRepository {
   LeaderboardEntry _mapEntry(Map<String, dynamic> data) {
     return LeaderboardEntry(
       singerId: data['singer_id'] as String? ?? data['id']?.toString() ?? '',
-      name: data['stage_name'] as String? ?? data['name'] as String? ?? 'Unknown',
+      name: data['stage_name'] as String? ?? data['display_name'] as String? ?? data['name'] as String? ?? 'Unknown',
       avatarUrl: data['avatar_url'] as String?,
       points: (data['points'] as num?)?.toInt() ?? 0,
       rank: (data['rank'] as num?)?.toInt() ?? 0,

@@ -89,7 +89,7 @@ class SingerProfileRepositoryImpl implements SingerProfileRepository {
 
     return SingerProfile(
       id: data['id'] as String? ?? '',
-      name: data['stage_name'] as String? ?? data['name'] as String? ?? 'Unknown',
+      name: data['stage_name'] as String? ?? data['display_name'] as String? ?? data['name'] as String? ?? 'Unknown',
       realName: data['real_name'] as String?,
       firstName: data['first_name'] as String?,
       lastName: data['last_name'] as String?,

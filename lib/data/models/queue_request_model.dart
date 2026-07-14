@@ -69,7 +69,7 @@ class PublicQueueItemModel extends PublicQueueItem {
       status: json['status']?.toString() ?? 'pending',
       songTitle: json['song_title']?.toString() ?? 'Unknown song',
       songArtist: json['song_artist']?.toString() ?? 'Unknown artist',
-      stageName: json['stage_name']?.toString() ?? 'Singer',
+      stageName: json['stage_name']?.toString() ?? json['display_name']?.toString() ?? 'Singer',
       estimatedStart: _dateOrNull(json['estimated_start']),
     );
   }

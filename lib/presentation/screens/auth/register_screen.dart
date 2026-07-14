@@ -88,6 +88,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         await storage.setSingerId(selectedVenue.id, venueResult.singerId);
       }
 
+
       if (mounted) {
         context.go(selectedVenue != null ? RoutePaths.home : RoutePaths.venueSelector);
       }
