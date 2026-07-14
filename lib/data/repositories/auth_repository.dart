@@ -46,7 +46,7 @@ class VenueAuthResult {
     return VenueAuthResult(
       accessToken: json['access_token'] as String,
       refreshToken: json['refresh_token'] as String,
-      singerId: json['account_id'] as String,
+      singerId: json['singer_id'] as String? ?? json['account_id'] as String,
       venueId: '', // populated by caller
       expiresIn: json['expires_in'] as int,
     );
@@ -68,7 +68,8 @@ class AccountAuthRepository {
     required String email,
     required String password,
     required String stageName,
-    String? realName,
+    String? firstName,
+    String? lastName,
     String? pronouns,
     String? phone,
     String? bio,
@@ -79,7 +80,8 @@ class AccountAuthRepository {
         'email': email,
         'password': password,
         'stage_name': stageName,
-        'real_name': realName,
+        'first_name': firstName,
+        'last_name': lastName,
         'pronouns': pronouns,
         'phone': phone,
         'bio': bio,

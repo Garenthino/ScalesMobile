@@ -13,6 +13,8 @@ abstract class SingerProfileRepository {
   Future<SingerProfile> updateMyProfile({
     String? stageName,
     String? realName,
+    String? firstName,
+    String? lastName,
     String? pronouns,
     String? phone,
     String? bio,

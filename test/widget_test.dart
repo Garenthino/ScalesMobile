@@ -239,6 +239,8 @@ class _FakeSingerProfileRepository implements SingerProfileRepository {
   Future<SingerProfile> updateMyProfile({
     String? stageName,
     String? realName,
+    String? firstName,
+    String? lastName,
     String? pronouns,
     String? phone,
     String? bio,
@@ -370,6 +372,8 @@ class _SpySingerProfileRepository implements SingerProfileRepository {
   Future<SingerProfile> updateMyProfile({
     String? stageName,
     String? realName,
+    String? firstName,
+    String? lastName,
     String? pronouns,
     String? phone,
     String? bio,

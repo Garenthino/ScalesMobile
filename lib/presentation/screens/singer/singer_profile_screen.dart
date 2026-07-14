@@ -203,6 +203,16 @@ class _NameSection extends StatelessWidget {
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
           ),
+        if ((profile.firstName != null && profile.firstName!.isNotEmpty) ||
+            (profile.lastName != null && profile.lastName!.isNotEmpty))
+          Text(
+            [profile.firstName, profile.lastName]
+                .where((s) => s != null && s.isNotEmpty)
+                .join(' '),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
       ],
     );
   }

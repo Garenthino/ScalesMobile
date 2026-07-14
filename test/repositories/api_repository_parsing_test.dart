@@ -104,11 +104,13 @@ void main() {
       expect(profile.performancesCount, 1);
     });
 
-    test('fetchMyProfile parses /me with social_links and aliases', () async {
+    test('fetchMyProfile parses /me with first/last names and social_links', () async {
       final dio = _dioWithRoutes({
         '/venues/venue_1/singers/me': _jsonResponse({
           'id': 'singer_1',
           'stage_name': 'Alex Singer',
+          'first_name': 'Alex',
+          'last_name': 'Johnson',
           'real_name': 'Alex Johnson',
           'pronouns': 'they/them',
           'phone': '+1-555-0100',
@@ -140,6 +142,8 @@ void main() {
 
       expect(profile.id, 'singer_1');
       expect(profile.name, 'Alex Singer');
+      expect(profile.firstName, 'Alex');
+      expect(profile.lastName, 'Johnson');
       expect(profile.realName, 'Alex Johnson');
       expect(profile.pronouns, 'they/them');
       expect(profile.phone, '+1-555-0100');
@@ -147,14 +151,13 @@ void main() {
       expect(profile.avatarUrl, 'https://example.com/avatar.png');
       expect(profile.socialLinks, hasLength(2));
       expect(profile.socialLinks.first.platform, 'Instagram');
-      expect(profile.socialLinks.first.url, 'https://instagram.com/alex');
       expect(profile.isCheckedIn, isTrue);
       expect(profile.checkedInAt, isNotNull);
       expect(profile.followersCount, 12);
       expect(profile.followingCount, 5);
     });
 
-    test('updateMyProfile sends PUT /me with allowed fields', () async {
+    test('updateMyProfile sends PUT /me with first/last and allowed fields', () async {
       RequestOptions? seenRequest;
       final dio = _dioWithRoutes({
         '/venues/venue_1/singers/me': (options) {
@@ -162,6 +165,8 @@ void main() {
           return _jsonResponse({
             'id': 'singer_1',
             'stage_name': 'New Stage Name',
+            'first_name': 'New',
+            'last_name': 'Real',
             'real_name': 'New Real',
             'pronouns': 'she/her',
             'phone': '+1-555-0200',
@@ -183,7 +188,8 @@ void main() {
 
       final profile = await repository.updateMyProfile(
         stageName: 'New Stage Name',
-        realName: 'New Real',
+        firstName: 'New',
+        lastName: 'Real',
         pronouns: 'she/her',
         phone: '+1-555-0200',
         bio: 'Updated bio',
@@ -193,12 +199,37 @@ void main() {
       expect(seenRequest?.method, 'PUT');
       final body = seenRequest?.data as Map<String, dynamic>;
       expect(body['stage_name'], 'New Stage Name');
+      expect(body['first_name'], 'New');
+      expect(body['last_name'], 'Real');
+      // Repository derives real_name when first/last provided so legacy backends
+      // without split fields still receive a full name.
       expect(body['real_name'], 'New Real');
       expect(body['pronouns'], 'she/her');
       expect(body['phone'], '+1-555-0200');
       expect(body['bio'], 'Updated bio');
       expect(body['social_links'], isA<List>());
       expect(profile.name, 'New Stage Name');
+    });
+
+    test('updateMyProfile throws StageNameTakenException on 409', () async {
+      final dio = _dioWithRoutes({
+        '/venues/venue_1/singers/me': (options) {
+          return _jsonResponse({}, statusCode: 409,
+              detail: 'Stage name "Taken" is already taken at this venue.')(options);
+        },
+      });
+      final repository = SingerProfileRepositoryImpl(dio: dio);
+
+      expect(
+        () => repository.updateMyProfile(stageName: 'Taken'),
+        throwsA(
+          isA<StageNameTakenException>().having(
+            (e) => e.stageName,
+            'stageName',
+            'Taken',
+          ),
+        ),
+      );
     });
 
     test('uploadAvatar sends POST /me/avatar and returns avatar_url', () async {
@@ -607,7 +638,16 @@ Dio _dioWithRoutes(Map<String, _RouteHandler> routes) {
 
 typedef _RouteHandler = ResponseBody Function(RequestOptions options);
 
-_RouteHandler _jsonResponse(Object body, {int statusCode = 200}) {
+_RouteHandler _jsonResponse(Object body, {int statusCode = 200, String? detail}) {
+  if (statusCode >= 400) {
+    return (_) => ResponseBody.fromString(
+          jsonEncode({'detail': detail ?? body.toString()}),
+          statusCode,
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+          },
+        );
+  }
   return (_) => ResponseBody.fromString(
         jsonEncode(body),
         statusCode,

@@ -24,4 +24,13 @@ plugins {
     id("com.google.gms.google-services") version "4.4.2" apply false
 }
 
+// Required dependency for core library desugaring (used by flutter_local_notifications).
+dependencyResolutionManagement {
+    versionCatalogs {
+        create("libs") {
+            library("desugarJdkLibs", "com.android.tools", "desugar_jdk_libs").version("2.1.5")
+        }
+    }
+}
+
 include(":app")

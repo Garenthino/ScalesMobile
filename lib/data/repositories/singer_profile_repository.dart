@@ -5,6 +5,19 @@ import 'package:scales_mobile/domain/entities/singer_profile.dart';
 import 'package:scales_mobile/domain/repositories/singer_repository.dart';
 import 'package:scales_mobile/services/venue_storage.dart';
 
+/// Exception thrown when a profile update violates a venue-scoped uniqueness
+/// constraint (e.g. stage name already taken in this venue).
+class StageNameTakenException implements Exception {
+  final String stageName;
+  final String? message;
+
+  const StageNameTakenException(this.stageName, {this.message});
+
+  @override
+  String toString() =>
+      message ?? 'Stage name "$stageName" is already taken at this venue.';
+}
+
 /// Real implementation of singer profile repository backed by the Scales API.
 class SingerProfileRepositoryImpl implements SingerProfileRepository {
   final Dio _dio;
@@ -78,6 +91,8 @@ class SingerProfileRepositoryImpl implements SingerProfileRepository {
       id: data['id'] as String? ?? '',
       name: data['stage_name'] as String? ?? data['name'] as String? ?? 'Unknown',
       realName: data['real_name'] as String?,
+      firstName: data['first_name'] as String?,
+      lastName: data['last_name'] as String?,
       pronouns: data['pronouns'] as String?,
       phone: data['phone'] as String?,
       bio: data['bio'] as String?,
@@ -204,6 +219,8 @@ class SingerProfileRepositoryImpl implements SingerProfileRepository {
   Future<SingerProfile> updateMyProfile({
     String? stageName,
     String? realName,
+    String? firstName,
+    String? lastName,
     String? pronouns,
     String? phone,
     String? bio,
@@ -217,7 +234,16 @@ class SingerProfileRepositoryImpl implements SingerProfileRepository {
     }
     final body = <String, dynamic>{};
     if (stageName != null) body['stage_name'] = stageName;
-    if (realName != null) body['real_name'] = realName;
+    final derivedRealName = [firstName, lastName]
+        .where((s) => s != null && s.isNotEmpty)
+        .join(' ');
+    if (derivedRealName.isNotEmpty) {
+      body['first_name'] = firstName;
+      body['last_name'] = lastName;
+      body['real_name'] = derivedRealName;
+    } else if (realName != null && realName.isNotEmpty) {
+      body['real_name'] = realName;
+    }
     if (pronouns != null) body['pronouns'] = pronouns;
     if (phone != null) body['phone'] = phone;
     if (bio != null) body['bio'] = bio;
@@ -243,10 +269,18 @@ class SingerProfileRepositoryImpl implements SingerProfileRepository {
         final data = response.data as Map<String, dynamic>;
         return _mapSingerProfile(data);
       }
+      if (response.statusCode == 409) {
+        final detail = (response.data as Map<String, dynamic>?)?['detail'] as String?;
+        throw StageNameTakenException(stageName ?? '', message: detail);
+      }
       throw Exception('Failed to update profile: ${response.statusCode}');
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
         throw Exception('Session expired. Please sign in again.');
+      }
+      if (e.response?.statusCode == 409) {
+        final detail = (e.response?.data as Map<String, dynamic>?)?['detail'] as String?;
+        throw StageNameTakenException(stageName ?? '', message: detail);
       }
       rethrow;
     }

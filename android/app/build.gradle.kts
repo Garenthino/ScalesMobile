@@ -5,6 +5,11 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+// Add desugaring dependency for flutter_local_notifications.
+dependencies {
+    coreLibraryDesugaring(libs.desugarJdkLibs)
+}
+
 android {
     namespace = "com.example.scales_mobile"
     compileSdk = flutter.compileSdkVersion
@@ -13,6 +18,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {

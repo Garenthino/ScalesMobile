@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:scales_mobile/data/repositories/singer_profile_repository.dart';
 import 'package:scales_mobile/domain/entities/singer_profile.dart';
 import 'package:scales_mobile/presentation/providers/profile_provider.dart';
 
@@ -14,7 +15,8 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   late final TextEditingController _stageNameController;
-  late final TextEditingController _realNameController;
+  late final TextEditingController _firstNameController;
+  late final TextEditingController _lastNameController;
   late final TextEditingController _pronounsController;
   late final TextEditingController _phoneController;
   late final TextEditingController _bioController;
@@ -26,12 +28,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   String? _avatarUrl;
   List<SocialLink> _socialLinks = [];
+  String? _stageNameError;
 
   @override
   void initState() {
     super.initState();
     _stageNameController = TextEditingController();
-    _realNameController = TextEditingController();
+    _firstNameController = TextEditingController();
+    _lastNameController = TextEditingController();
     _pronounsController = TextEditingController();
     _phoneController = TextEditingController();
     _bioController = TextEditingController();
@@ -42,7 +46,17 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     try {
       final profile = await ref.read(myProfileProvider.future);
       _stageNameController.text = profile.name;
-      _realNameController.text = profile.realName ?? '';
+      _firstNameController.text = profile.firstName ?? '';
+      _lastNameController.text = profile.lastName ?? '';
+      // Fallback: if server only returned a legacy real_name, split it into
+      // first/last so the user can edit it as separate fields.
+      if (profile.firstName == null && profile.lastName == null && profile.realName != null) {
+        final parts = profile.realName!.trim().split(RegExp(r'\s+'));
+        _firstNameController.text = parts.first;
+        if (parts.length > 1) {
+          _lastNameController.text = parts.sublist(1).join(' ');
+        }
+      }
       _pronounsController.text = profile.pronouns ?? '';
       _phoneController.text = profile.phone ?? '';
       _bioController.text = profile.bio ?? '';
@@ -64,7 +78,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   @override
   void dispose() {
     _stageNameController.dispose();
-    _realNameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _pronounsController.dispose();
     _phoneController.dispose();
     _bioController.dispose();
@@ -116,15 +131,19 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   Future<void> _save() async {
     setState(() => _isSaving = true);
 
+    final firstName = _firstNameController.text.trim();
+    final lastName = _lastNameController.text.trim();
+    final realName = [firstName, lastName].where((s) => s.isNotEmpty).join(' ');
+
     try {
       final repo = ref.read(singerProfileRepoProvider);
       await repo.updateMyProfile(
         stageName: _stageNameController.text.trim().isNotEmpty
             ? _stageNameController.text.trim()
             : null,
-        realName: _realNameController.text.trim().isNotEmpty
-            ? _realNameController.text.trim()
-            : null,
+        realName: realName.isNotEmpty ? realName : null,
+        firstName: firstName.isNotEmpty ? firstName : null,
+        lastName: lastName.isNotEmpty ? lastName : null,
         pronouns: _pronounsController.text.trim().isNotEmpty
             ? _pronounsController.text.trim()
             : null,
@@ -143,6 +162,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           const SnackBar(content: Text('Profile updated')),
         );
         context.pop();
+      }
+    } on StageNameTakenException catch (e) {
+      if (mounted) {
+        setState(() => _stageNameError = e.toString());
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -250,12 +276,32 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     controller: _stageNameController,
                     label: 'Stage Name',
                     icon: Icons.person_outline,
+                    errorText: _stageNameError,
+                    onChanged: (_) {
+                      if (_stageNameError != null) {
+                        setState(() => _stageNameError = null);
+                      }
+                    },
                   ),
                   const SizedBox(height: 16),
-                  _buildTextField(
-                    controller: _realNameController,
-                    label: 'Real Name',
-                    icon: Icons.badge_outlined,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildTextField(
+                          controller: _firstNameController,
+                          label: 'First Name',
+                          icon: Icons.badge_outlined,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildTextField(
+                          controller: _lastNameController,
+                          label: 'Last Name',
+                          icon: Icons.badge_outlined,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   _buildTextField(
@@ -356,19 +402,23 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     required String label,
     required IconData icon,
     String? hint,
+    String? errorText,
     TextInputType? keyboardType,
     int maxLines = 1,
+    void Function(String)? onChanged,
   }) {
     return TextField(
       controller: controller,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
+        errorText: errorText,
         prefixIcon: Icon(icon),
         border: const OutlineInputBorder(),
       ),
       keyboardType: keyboardType,
       maxLines: maxLines,
+      onChanged: onChanged,
       textCapitalization: maxLines > 1
           ? TextCapitalization.sentences
           : TextCapitalization.none,

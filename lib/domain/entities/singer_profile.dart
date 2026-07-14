@@ -76,7 +76,9 @@ class LoyaltyTier {
 class SingerProfile {
   final String id;
   final String name;
-  final String? realName;
+  final String? realName; // legacy full display name (server-derived)
+  final String? firstName;
+  final String? lastName;
   final String? pronouns;
   final String? phone;
   final String? bio;
@@ -95,6 +97,8 @@ class SingerProfile {
     required this.id,
     required this.name,
     this.realName,
+    this.firstName,
+    this.lastName,
     this.pronouns,
     this.phone,
     this.bio,
@@ -110,9 +114,13 @@ class SingerProfile {
     required this.favoriteSongs,
   });
 
+  String get displayName => name;
+
   SingerProfile copyWith({
     String? name,
     String? realName,
+    String? firstName,
+    String? lastName,
     String? pronouns,
     String? phone,
     String? bio,
@@ -131,6 +139,8 @@ class SingerProfile {
       id: id,
       name: name ?? this.name,
       realName: realName ?? this.realName,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
       pronouns: pronouns ?? this.pronouns,
       phone: phone ?? this.phone,
       bio: bio ?? this.bio,
