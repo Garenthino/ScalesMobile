@@ -88,7 +88,7 @@ class SingerProfileRepositoryImpl implements SingerProfileRepository {
     final checkedInAtRaw = data['checked_in_at'] as String?;
 
     return SingerProfile(
-      id: data['id'] as String? ?? '',
+      id: data['singer_id'] as String? ?? data['id'] as String? ?? '',
       name: data['stage_name'] as String? ?? data['display_name'] as String? ?? data['name'] as String? ?? 'Unknown',
       realName: data['real_name'] as String?,
       firstName: data['first_name'] as String?,
@@ -199,7 +199,12 @@ class SingerProfileRepositoryImpl implements SingerProfileRepository {
         throw Exception('No active account or venue');
       }
 
-      final singerId = data['id'] as String? ?? '';
+      // /accounts/me returns both account id and venue-specific singer_id;
+      // history/favorites endpoints require the per-venue singer UUID.
+      final accountId = data['id'] as String? ?? '';
+      final singerId = (data['singer_id'] as String?)?.isNotEmpty == true
+          ? data['singer_id'] as String
+          : accountId;
       final history = venueId != null && singerId.isNotEmpty
           ? await fetchSongHistory(singerId)
           : <SongHistoryItem>[];
