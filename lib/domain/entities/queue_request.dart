@@ -42,6 +42,7 @@ class QueueHistoryItem {
   final String requestedAt;
   final String? playedAt;
   final String? notes;
+  final String? rejectReason;
 
   const QueueHistoryItem({
     required this.requestId,
@@ -52,6 +53,7 @@ class QueueHistoryItem {
     required this.requestedAt,
     this.playedAt,
     this.notes,
+    this.rejectReason,
   });
 }
 

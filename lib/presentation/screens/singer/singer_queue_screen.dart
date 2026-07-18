@@ -223,7 +223,16 @@ class _HistoryItem extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                   ),
             ),
-            if (item.playedAt != null && item.playedAt!.isNotEmpty)
+            if (item.status == 'rejected' && item.rejectReason != null && item.rejectReason!.isNotEmpty)
+              Text(
+                item.rejectReason!,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              )
+            else if (item.playedAt != null && item.playedAt!.isNotEmpty)
               Text(
                 _formatTimestamp(item.playedAt!),
                 style: theme.textTheme.labelSmall,

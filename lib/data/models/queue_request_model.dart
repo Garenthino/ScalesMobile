@@ -110,6 +110,7 @@ class QueueHistoryItemModel extends QueueHistoryItem {
     required super.requestedAt,
     super.playedAt,
     super.notes,
+    super.rejectReason,
   });
 
   factory QueueHistoryItemModel.fromJson(Map<String, dynamic> json) {
@@ -122,6 +123,7 @@ class QueueHistoryItemModel extends QueueHistoryItem {
       requestedAt: json['requested_at']?.toString() ?? '',
       playedAt: json['played_at']?.toString(),
       notes: json['notes']?.toString(),
+      rejectReason: json['reject_reason']?.toString(),
     );
   }
 }

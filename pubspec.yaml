@@ -2,7 +2,7 @@ name: scales_mobile
 description: "Singer-facing mobile app for the Scales karaoke platform."
 publish_to: 'none'
 
-version: 0.2.3+1
+version: 0.2.5+1
 
 environment:
   sdk: ^3.12.0
