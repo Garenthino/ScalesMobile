@@ -32,6 +32,7 @@ class ApiEndpoints {
   static String queueLeave(String venueId) => '/venues/$venueId/queue/leave';
   static String queueVenue(String venueId) => '/venues/$venueId/queue/venue';
   static String myQueue(String venueId) => '/venues/$venueId/singers/me/queue';
+  static String myQueueCancel(String venueId, String requestId) => '/venues/$venueId/singers/me/queue/$requestId';
   static String myQueueHistory(String venueId) => '/venues/$venueId/singers/me/queue/history';
   static String follow(String venueId, String followeeId) =>
       '/venues/$venueId/singers/follow/$followeeId';
@@ -59,6 +60,7 @@ class PaymentPresets {
 class StatusCodes {
   static const int ok = 200;
   static const int created = 201;
+  static const int noContent = 204;
   static const int badRequest = 400;
   static const int unauthorized = 401;
   static const int notFound = 404;

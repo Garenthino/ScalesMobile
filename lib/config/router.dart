@@ -34,7 +34,8 @@ Future<String?> _asyncRedirect(GoRouterState state, Ref ref) async {
   if (path == RoutePaths.splash ||
       path == RoutePaths.onboarding ||
       path == RoutePaths.venueSelector ||
-      path == RoutePaths.auth) {
+      path == RoutePaths.auth ||
+      path == '/register') {
     return null;
   }
 
@@ -54,7 +55,7 @@ Future<String?> _asyncRedirect(GoRouterState state, Ref ref) async {
     _ => false,
   };
 
-  final isAuthRoute = path == RoutePaths.auth;
+  final isAuthRoute = path == RoutePaths.auth || path == '/register';
 
   if (isAuth && isAuthRoute) {
     return RoutePaths.home;

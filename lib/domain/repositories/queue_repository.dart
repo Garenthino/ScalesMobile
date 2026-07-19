@@ -18,5 +18,7 @@ abstract class QueueRepository {
 
   Future<int> leaveQueue({required String venueId, String? requestId});
 
+  Future<void> cancelRequest({required String venueId, required String requestId});
+
   Future<PublicQueue> fetchVenueQueue({required String venueId});
 }

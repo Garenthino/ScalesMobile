@@ -27,3 +27,12 @@ final myQueueHistoryProvider = FutureProvider.autoDispose
       final repository = ref.watch(queueRepositoryProvider);
       return repository.fetchMyQueueHistory(venueId: venueId);
     });
+
+final cancelRequestProvider = Provider.autoDispose
+    .family<Future<void> Function(String requestId), String>((ref, venueId) {
+  return (String requestId) async {
+    final repository = ref.read(queueRepositoryProvider);
+    await repository.cancelRequest(venueId: venueId, requestId: requestId);
+    ref.invalidate(myQueueProvider(venueId));
+  };
+});

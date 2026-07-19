@@ -127,6 +127,12 @@ class _ActiveItem extends ConsumerWidget {
             if (item.etaSeconds != null)
               Text(_formatEta(item.etaSeconds!)),
             const SizedBox(width: 4),
+            if (item.status == 'pending' || item.status == 'approved')
+              IconButton(
+                icon: const Icon(Icons.cancel_outlined, size: 20),
+                tooltip: 'Remove request',
+                onPressed: () => _confirmCancel(context, ref, venueId, item),
+              ),
             IconButton(
               icon: const Icon(Icons.fast_forward, size: 20),
               tooltip: 'Priority Bump',
@@ -161,6 +167,47 @@ class _ActiveItem extends ConsumerWidget {
     final minutes = (seconds / 60).ceil();
     return '~${minutes}m';
   }
+
+  Future<void> _confirmCancel(
+    BuildContext context,
+    WidgetRef ref,
+    String venueId,
+    QueueStatusItem item,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove request?'),
+        content: Text("Remove '\${item.songTitle}' from your queue?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      final cancel = ref.read(cancelRequestProvider(venueId));
+      await cancel(item.requestId);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Request removed')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not remove request: $e')),
+        );
+      }
+    }
+  }
 }
 
 // ------------------------------------------------------------------
@@ -179,13 +226,15 @@ class _HistoryTab extends ConsumerWidget {
       child: historyAsync.when(
         data: (result) {
           if (result.items.isEmpty) return const _EmptyHistoryState();
+          final historyItems = _aggregateHistory(result.items);
+          if (historyItems.isEmpty) return const _EmptyHistoryState();
           return ListView.separated(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(16),
             itemBuilder: (context, index) =>
-                _HistoryItem(item: result.items[index]),
+                _HistoryItem(item: historyItems[index]),
             separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemCount: result.items.length,
+            itemCount: historyItems.length,
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -198,8 +247,70 @@ class _HistoryTab extends ConsumerWidget {
   }
 }
 
+class _AggregatedHistoryItem {
+  final String songTitle;
+  final String songArtist;
+  final String? genre;
+  final int timesSung;
+  final DateTime? lastSung;
+  final String? lastRequestId;
+
+  _AggregatedHistoryItem({
+    required this.songTitle,
+    required this.songArtist,
+    this.genre,
+    required this.timesSung,
+    this.lastSung,
+    this.lastRequestId,
+  });
+}
+
+List<_AggregatedHistoryItem> _aggregateHistory(List<QueueHistoryItem> items) {
+  final map = <String, _AggregatedHistoryItem>{};
+  for (final item in items) {
+    // Rejected/skipped requests do not belong in song history.
+    if (item.status == 'rejected' || item.status == 'skipped') continue;
+    final key = '${item.songArtist.toLowerCase()}::${item.songTitle.toLowerCase()}';
+    final existing = map[key];
+    final itemDate = _parseTimestamp(item.playedAt ?? item.requestedAt);
+    if (existing == null ||
+        (itemDate != null &&
+            (existing.lastSung == null || itemDate.isAfter(existing.lastSung!)))) {
+      map[key] = _AggregatedHistoryItem(
+        songTitle: item.songTitle,
+        songArtist: item.songArtist,
+        genre: item.genre,
+        timesSung: (existing?.timesSung ?? 0) + 1,
+        lastSung: itemDate ?? existing?.lastSung,
+        lastRequestId: item.requestId,
+      );
+    } else {
+      map[key] = _AggregatedHistoryItem(
+        songTitle: existing.songTitle,
+        songArtist: existing.songArtist,
+        genre: existing.genre,
+        timesSung: existing.timesSung + 1,
+        lastSung: existing.lastSung,
+        lastRequestId: existing.lastRequestId,
+      );
+    }
+  }
+  final list = map.values.toList();
+  list.sort((a, b) => (b.lastSung ?? DateTime(1970)).compareTo(a.lastSung ?? DateTime(1970)));
+  return list;
+}
+
+DateTime? _parseTimestamp(String? value) {
+  if (value == null || value.isEmpty) return null;
+  try {
+    return DateTime.parse(value);
+  } catch (_) {
+    return null;
+  }
+}
+
 class _HistoryItem extends StatelessWidget {
-  final QueueHistoryItem item;
+  final _AggregatedHistoryItem item;
   const _HistoryItem({required this.item});
 
   @override
@@ -207,7 +318,7 @@ class _HistoryItem extends StatelessWidget {
     final theme = Theme.of(context);
     return Card(
       child: ListTile(
-        leading: _historyIcon(item.status),
+        leading: const Icon(Icons.music_note),
         title: Text(item.songTitle),
         subtitle: Text(
           '${item.songArtist}${item.genre != null && item.genre!.isNotEmpty ? ' • ${item.genre}' : ''}',
@@ -217,62 +328,22 @@ class _HistoryItem extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(
-              _statusLabel(item.status),
+              '${item.timesSung}x sung',
               style: theme.textTheme.labelSmall?.copyWith(
-                    color: _statusColor(item.status, theme),
                     fontWeight: FontWeight.bold,
                   ),
             ),
-            if (item.status == 'rejected' && item.rejectReason != null && item.rejectReason!.isNotEmpty)
+            if (item.lastSung != null)
               Text(
-                item.rejectReason!,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.error,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              )
-            else if (item.playedAt != null && item.playedAt!.isNotEmpty)
-              Text(
-                _formatTimestamp(item.playedAt!),
+                _formatTimestamp(item.lastSung!.toIso8601String()),
                 style: theme.textTheme.labelSmall,
               )
             else
-              Text(
-                'Requested ${_formatTimestamp(item.requestedAt)}',
-                style: theme.textTheme.labelSmall,
-              ),
+              const SizedBox.shrink(),
           ],
         ),
       ),
     );
-  }
-
-  Widget _historyIcon(String status) {
-    return switch (status) {
-      'completed' => const Icon(Icons.check_circle, color: Colors.green),
-      'skipped' => const Icon(Icons.skip_next, color: Colors.orange),
-      'rejected' => const Icon(Icons.cancel, color: Colors.red),
-      _ => const Icon(Icons.music_note),
-    };
-  }
-
-  String _statusLabel(String status) {
-    return switch (status) {
-      'completed' => 'Completed',
-      'skipped' => 'Skipped',
-      'rejected' => 'Rejected',
-      _ => status,
-    };
-  }
-
-  Color _statusColor(String status, ThemeData theme) {
-    return switch (status) {
-      'completed' => Colors.green,
-      'skipped' => Colors.orange,
-      'rejected' => theme.colorScheme.error,
-      _ => theme.colorScheme.onSurface,
-    };
   }
 
   String _formatTimestamp(String iso) {

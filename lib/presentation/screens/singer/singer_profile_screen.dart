@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:scales_mobile/core/constants/app_constants.dart';
 import 'package:scales_mobile/domain/entities/singer_profile.dart';
 import 'package:scales_mobile/presentation/providers/auth_provider.dart';
@@ -135,13 +134,10 @@ class _ProfileBody extends StatelessWidget {
                   const SizedBox(height: 24),
                   _NotificationSettingsButton(),
                   const SizedBox(height: 24),
-                  _CheckInQR(userId: userId),
-                  const SizedBox(height: 24),
-                  _SectionTitle(title: 'Song History (${profile.songHistory.length})'),
-                  _SongList(songs: profile.songHistory),
-                  const SizedBox(height: 24),
                   _SectionTitle(title: 'Favorite Songs (${profile.favoriteSongs.length})'),
                   _SongList(songs: profile.favoriteSongs),
+                  const SizedBox(height: 24),
+                  _LogoutButton(),
                   const SizedBox(height: 40),
                 ],
               ),
@@ -203,16 +199,7 @@ class _NameSection extends StatelessWidget {
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
           ),
-        if ((profile.firstName != null && profile.firstName!.isNotEmpty) ||
-            (profile.lastName != null && profile.lastName!.isNotEmpty))
-          Text(
-            [profile.firstName, profile.lastName]
-                .where((s) => s != null && s.isNotEmpty)
-                .join(' '),
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-          ),
+        // Real name shown once; firstName/lastName removed to avoid duplication.
       ],
     );
   }
@@ -563,36 +550,39 @@ class _NotificationSettingsButton extends StatelessWidget {
   }
 }
 
-class _CheckInQR extends StatelessWidget {
-  final String userId;
-  const _CheckInQR({required this.userId});
+class _LogoutButton extends ConsumerWidget {
+  const _LogoutButton();
 
   @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Text('Quick Check-In', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                color: Colors.white,
-                padding: const EdgeInsets.all(12),
-                child: QrImageView(
-                  data: 'scales://checkin?singerId=$userId',
-                  size: 180,
-                  backgroundColor: Colors.white,
-                ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ElevatedButton.icon(
+      onPressed: () async {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Log out?'),
+            content: const Text('You will need to sign in again.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text('Show this QR code at the venue',
-                style: Theme.of(context).textTheme.bodySmall),
-          ],
-        ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Log out'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true) return;
+        await ref.read(authProvider.notifier).logout();
+        if (context.mounted) context.go(RoutePaths.auth);
+      },
+      icon: const Icon(Icons.logout),
+      label: const Text('Log out'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Theme.of(context).colorScheme.errorContainer,
+        foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
       ),
     );
   }

@@ -102,6 +102,28 @@ class QueueRepositoryImpl implements QueueRepository {
   }
 
   @override
+  Future<void> cancelRequest({
+    required String venueId,
+    required String requestId,
+  }) async {
+    await _requireAuthToken(venueId);
+    try {
+      final response = await _dio.delete(
+        ApiEndpoints.myQueueCancel(venueId, requestId),
+      );
+      if (response.statusCode == StatusCodes.ok ||
+          response.statusCode == StatusCodes.noContent) {
+        return;
+      }
+      throw Exception(
+        _errorMessage(response, fallback: 'Could not cancel request.'),
+      );
+    } on DioException catch (e) {
+      throw Exception(_dioErrorMessage(e));
+    }
+  }
+
+  @override
   Future<int> leaveQueue({required String venueId, String? requestId}) async {
     await _requireAuthToken(venueId);
     try {
